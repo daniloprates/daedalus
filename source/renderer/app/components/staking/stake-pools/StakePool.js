@@ -35,7 +35,7 @@ export default class StakePool extends Component<Props> {
       <div className={componentClassnames}>
         <div
           className={styles.content}
-          onClick={() => onClick(stakePool)}
+          onClick={(event: MouseEvent) => onClick(event, stakePool)}
           role="link"
           aria-hidden
         >

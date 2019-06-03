@@ -59,6 +59,7 @@ type State = {
   selectedList?: ?string,
   selectedIndex?: ?number,
   selectedPool: StakePoolProps | {},
+  targetElement?: ?HTMLElement,
 };
 
 @observer
@@ -73,6 +74,7 @@ export default class StakingStakePools extends Component<Props, State> {
     selectedList: null,
     selectedIndex: null,
     selectedPool: {},
+    targetElement: null,
   };
 
   searchInput: ?HTMLElement = null;
@@ -91,7 +93,11 @@ export default class StakingStakePools extends Component<Props, State> {
     newSelectedList === this.state.selectedList &&
     newSelectedIndex === this.state.selectedIndex;
 
-  handleClick = (selectedList: string, selectedPool: StakePoolProps) => {
+  handleClick = (
+    selectedList: string,
+    event: SyntheticMouseEvent<HTMLElement>,
+    selectedPool: StakePoolProps
+  ) => {
     const { index: selectedIndex } = selectedPool;
     if (
       this.state.selectedList === selectedList &&
@@ -99,7 +105,20 @@ export default class StakingStakePools extends Component<Props, State> {
     ) {
       return this.handleClose();
     }
-    return this.setState({ selectedList, selectedIndex, selectedPool });
+    event.persist();
+    const targetElement =
+      event.target.className === 'StakePool_content'
+        ? event.target
+        : event.target.parentNode;
+    console.log('targetElement', targetElement);
+    console.log('event.target.className', event.target.className);
+    console.log('event.target.class', event.target.class);
+    return this.setState({
+      selectedList,
+      selectedIndex,
+      selectedPool,
+      targetElement,
+    });
   };
 
   handleClose = () =>
@@ -118,7 +137,7 @@ export default class StakingStakePools extends Component<Props, State> {
       currentTheme,
     } = this.props;
 
-    const { selectedIndex, selectedPool } = this.state;
+    const { search, selectedIndex, selectedPool, targetElement } = this.state;
 
     return (
       <div className={styles.component}>
@@ -132,7 +151,7 @@ export default class StakingStakePools extends Component<Props, State> {
             }}
             placeholder={intl.formatMessage(messages.searchInputPlaceholder)}
             skin={InputSkin}
-            value={this.state.search}
+            value={search}
             maxLength={150}
             autoFocus
           />
@@ -164,16 +183,6 @@ export default class StakingStakePools extends Component<Props, State> {
           </ul>
         </div>
 
-        <DynamicTooltip isVisible={!!selectedIndex}>
-          <StakePoolTooltip
-            stakePool={selectedPool}
-            className={styles.tooltip}
-            onClick={this.handleClose}
-            currentTheme={currentTheme}
-            onOpenExternalLink={onOpenExternalLink}
-          />
-        </DynamicTooltip>
-
         <h2>{intl.formatMessage(messages.delegatingListTitle)}</h2>
 
         <div className={styles.stakePoolsDelegatingList}>
@@ -186,8 +195,8 @@ export default class StakingStakePools extends Component<Props, State> {
                 'selectedIndexDelegatedList',
                 stakePool.index
               )}
-              onClick={pool =>
-                this.handleClick('selectedIndexDelegatedList', pool)
+              onClick={(...args) =>
+                this.handleClick('selectedIndexDelegatedList', ...args)
               }
             />
           ))}
@@ -209,10 +218,25 @@ export default class StakingStakePools extends Component<Props, State> {
               key={stakePool.id}
               ranking={this.getRanking(stakePool.index)}
               isSelected={this.isSelected('selectedIndexList', stakePool.index)}
-              onClick={pool => this.handleClick('selectedIndexList', pool)}
+              onClick={(...args) =>
+                this.handleClick('selectedIndexList', ...args)
+              }
             />
           ))}
         </div>
+
+        <DynamicTooltip
+          isVisible={!!selectedIndex}
+          targetElement={targetElement}
+        >
+          <StakePoolTooltip
+            stakePool={selectedPool}
+            className={styles.tooltip}
+            onClick={this.handleClose}
+            currentTheme={currentTheme}
+            onOpenExternalLink={onOpenExternalLink}
+          />
+        </DynamicTooltip>
       </div>
     );
   }
