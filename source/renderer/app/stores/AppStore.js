@@ -20,7 +20,6 @@ export default class AppStore extends Store {
   @observable isAboutDialogOpen = false;
   @observable isDaedalusDiagnosticsDialogOpen = false;
   @observable gpuStatus: ?GpuStatus = null;
-  @observable numberOfEpochsConsolidated: number = 0;
   @observable previousRoute: string = ROUTES.ROOT;
 
   setup() {
