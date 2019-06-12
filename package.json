@@ -9,6 +9,7 @@
     "start": "gulp start",
     "start:dev": "NODE_ENV=development gulp start",
     "dev": "IS_WATCH_MODE=true gulp dev",
+    "deploy-storybook": "storybook-to-ghpages -s storybook:build",
     "test": "NODE_ENV=test yarn build && yarn test:unit && yarn test:e2e",
     "test:unit": "yarn cucumber --require 'features/tests/unit/**/*.js' --tags '@unit and not @skip'",
     "test:unit:watch": "nodemon --watch source --watch features --exec \"yarn test:unit --tags '@unit and @watch'\"",
@@ -125,6 +126,7 @@
     "yamljs": "0.3.0"
   },
   "dependencies": {
+    "@storybook/storybook-deployer": "^2.8.1",
     "aes-js": "3.1.0",
     "bignumber.js": "5.0.0",
     "bip39": "2.3.0",
