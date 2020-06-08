@@ -1,9 +1,20 @@
 .component {
   margin: 20px auto;
+  pointer-events: none;
 
   &.big {
     height: 44px;
     width: 44px;
+  }
+
+  &.medium {
+    height: 24px;
+    margin: 0;
+    width: 24px;
+
+    .icon svg path {
+      fill: var(--theme-loading-spinner-medium-color);
+    }
   }
 
   &.small {

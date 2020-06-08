@@ -37,6 +37,8 @@ const messages = defineMessages({
 type Props = {
   activeItem: string,
   onNavItemClick: Function,
+  isActiveNavItem: Function,
+  isIncentivizedTestnet: boolean,
 };
 
 @observer
@@ -46,34 +48,46 @@ export default class StakingNavigation extends Component<Props> {
   };
 
   render() {
-    const { onNavItemClick, activeItem } = this.props;
+    const {
+      onNavItemClick,
+      activeItem,
+      isActiveNavItem,
+      isIncentivizedTestnet,
+    } = this.props;
     const { intl } = this.context;
+    const navigationItems = [
+      {
+        id: 'delegation-center',
+        label: intl.formatMessage(messages.delegation_center),
+      },
+      {
+        id: 'stake-pools',
+        label: intl.formatMessage(messages.stake_pools),
+      },
+      {
+        id: 'rewards',
+        label: intl.formatMessage(messages.rewards),
+      },
+    ];
+    if (!isIncentivizedTestnet) {
+      navigationItems.push(
+        {
+          id: 'epochs',
+          label: intl.formatMessage(messages.epochs),
+        },
+        {
+          id: 'info',
+          label: intl.formatMessage(messages.info),
+        }
+      );
+    }
+
     return (
       <Navigation
         activeItem={activeItem}
+        isActiveNavItem={isActiveNavItem}
         onNavItemClick={onNavItemClick}
-        items={[
-          {
-            id: 'delegation-center',
-            label: intl.formatMessage(messages.delegation_center),
-          },
-          {
-            id: 'stake-pools',
-            label: intl.formatMessage(messages.stake_pools),
-          },
-          {
-            id: 'rewards',
-            label: intl.formatMessage(messages.rewards),
-          },
-          {
-            id: 'epochs',
-            label: intl.formatMessage(messages.epochs),
-          },
-          {
-            id: 'info',
-            label: intl.formatMessage(messages.info),
-          },
-        ]}
+        items={navigationItems}
       />
     );
   }

@@ -2,16 +2,21 @@
 import React, { Component } from 'react';
 import { inject, observer } from 'mobx-react';
 import WalletAdd from '../../components/wallet/WalletAdd';
-import WalletCreateDialog from '../../components/wallet/WalletCreateDialog';
-import WalletRestoreDialog from '../../components/wallet/WalletRestoreDialog';
-import WalletFileImportDialog from '../../components/wallet/file-import/WalletFileImportDialog';
 import WalletBackupDialog from '../../components/wallet/WalletBackupDialog';
-import WalletFileImportDialogContainer from './dialogs/WalletFileImportDialogContainer';
-import WalletRestoreDialogContainer from './dialogs/WalletRestoreDialogContainer';
 import WalletBackupDialogContainer from './dialogs/WalletBackupDialogContainer';
 import WalletCreateDialogContainer from './dialogs/WalletCreateDialogContainer';
+import WalletRestoreDialogContainer from './dialogs/WalletRestoreDialogContainer';
 import Layout from '../MainLayout';
 import type { InjectedProps } from '../../types/injectedPropsType';
+
+// TODO: Remove once the new wallet creation process is ready
+import WalletCreateDialogContainerOld from './dialogs/WalletCreateDialogContainerOld';
+import WalletCreateDialog from '../../components/wallet/WalletCreateDialog';
+
+// TODO: Remove once the new wallet restoration process is ready
+import WalletRestoreDialogContainerOld from './dialogs/WalletRestoreDialogContainerOld';
+import WalletRestoreDialog from '../../components/wallet/WalletRestoreDialog';
+import WalletImportDialogContainer from './dialogs/WalletImportDialogContainer';
 
 type Props = InjectedProps;
 
@@ -26,41 +31,62 @@ export default class WalletAddPage extends Component<Props> {
 
   render() {
     const { actions, stores } = this.props;
-    const { wallets, uiDialogs, app } = stores;
-    const { isRestoreActive } = wallets;
+    const { wallets, walletMigration, uiDialogs } = stores;
     const {
-      environment: { isMainnet, isTestnet },
-    } = app;
+      createWalletStep,
+      createWalletUseNewProcess,
+      restoreWalletStep,
+      restoreWalletUseNewProcess,
+      environment,
+    } = wallets;
 
-    let content = null;
+    const { walletMigrationStep } = walletMigration;
 
+    const { isMainnet, isTestnet, isProduction } = environment;
+
+    const onCreateWallet = createWalletUseNewProcess
+      ? () => actions.wallets.createWalletBegin.trigger()
+      : // TODO: Remove once the new wallet creation process is ready
+        () => actions.dialogs.open.trigger({ dialog: WalletCreateDialog });
+
+    const onRestoreWallet = restoreWalletUseNewProcess
+      ? () => actions.wallets.restoreWalletBegin.trigger()
+      : // TODO: Remove once the new wallet restoration process is ready
+        () => actions.dialogs.open.trigger({ dialog: WalletRestoreDialog });
+
+    const onImportWallet = () =>
+      actions.walletMigration.initiateMigration.trigger();
+
+    let activeDialog = null;
+
+    // TODO: Remove once the new wallet creation process is ready
     if (uiDialogs.isOpen(WalletCreateDialog)) {
-      content = <WalletCreateDialogContainer onClose={this.onClose} />;
+      activeDialog = <WalletCreateDialogContainerOld onClose={this.onClose} />;
+    } else if (createWalletStep !== null) {
+      activeDialog = <WalletCreateDialogContainer onClose={this.onClose} />;
     } else if (uiDialogs.isOpen(WalletBackupDialog)) {
-      content = <WalletBackupDialogContainer onClose={this.onClose} />;
+      activeDialog = <WalletBackupDialogContainer onClose={this.onClose} />;
     } else if (uiDialogs.isOpen(WalletRestoreDialog)) {
-      content = <WalletRestoreDialogContainer onClose={this.onClose} />;
-    } else if (uiDialogs.isOpen(WalletFileImportDialog)) {
-      content = <WalletFileImportDialogContainer onClose={this.onClose} />;
-    } else {
-      content = (
+      activeDialog = <WalletRestoreDialogContainerOld onClose={this.onClose} />;
+    } else if (restoreWalletStep !== null) {
+      activeDialog = <WalletRestoreDialogContainer onClose={this.onClose} />;
+    } else if (walletMigrationStep !== null) {
+      activeDialog = <WalletImportDialogContainer onClose={this.onClose} />;
+    }
+
+    return (
+      <Layout>
         <WalletAdd
+          onCreate={onCreateWallet}
+          onRestore={onRestoreWallet}
+          onImport={onImportWallet}
+          isMaxNumberOfWalletsReached={wallets.hasMaxWallets}
           isMainnet={isMainnet}
           isTestnet={isTestnet}
-          onCreate={() =>
-            actions.dialogs.open.trigger({ dialog: WalletCreateDialog })
-          }
-          onRestore={() =>
-            actions.dialogs.open.trigger({ dialog: WalletRestoreDialog })
-          }
-          onImportFile={() =>
-            actions.dialogs.open.trigger({ dialog: WalletFileImportDialog })
-          }
-          isRestoreActive={isRestoreActive}
-          isMaxNumberOfWalletsReached={wallets.hasMaxWallets}
+          isProduction={isProduction}
         />
-      );
-    }
-    return <Layout>{content}</Layout>;
+        {activeDialog}
+      </Layout>
+    );
   }
 }

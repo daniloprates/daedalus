@@ -1,3 +1,5 @@
+@import '../../../themes/mixins/link';
+
 .completionContentWrapper {
   color: var(--theme-dialog-text-color);
   font-family: var(--font-light);
@@ -25,7 +27,7 @@
       --theme-paper-wallet-create-certificate-dialog-explorer-link-background-color
     );
     border-radius: 2px;
-    font-family: var(--font-regular);
+    font-family: var(--font-mono);
     letter-spacing: 0.5px;
     line-height: 1.38;
     margin: 10px 0 20px;
@@ -36,11 +38,19 @@
     word-wrap: break-word;
 
     .link {
+      border-color: var(
+        --theme-paper-wallet-create-certificate-dialog-explorer-link-color
+      );
       color: var(
         --theme-paper-wallet-create-certificate-dialog-explorer-link-color
       );
-      cursor: pointer;
-      text-decoration: underline;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      &:after {
+        background-color: var(
+          --theme-paper-wallet-create-certificate-dialog-explorer-link-color
+        );
+      }
     }
   }
 
@@ -62,6 +72,8 @@
 
   .copyIconBig {
     margin-left: 6px;
+    vertical-align: middle;
+
     & > svg {
       height: 14.5px;
       width: 11.5px;

@@ -8,6 +8,7 @@ import { Button } from 'react-polymorph/lib/components/Button';
 import { ButtonSkin } from 'react-polymorph/lib/skins/simple/ButtonSkin';
 import { ModalSkin } from 'react-polymorph/lib/skins/simple/ModalSkin';
 import styles from './Dialog.scss';
+import dialogOverridesStyles from './DialogOverride.scss';
 
 export type DialogAction = {
   className?: ?string,
@@ -20,11 +21,13 @@ export type DialogAction = {
 
 type Props = {
   title?: string,
+  subtitle?: string | Node,
   children?: Node,
   actions?: Array<DialogAction>,
-  closeButton?: Element<any>,
+  closeButton?: ?Element<any>,
   backButton?: Node,
   className?: string,
+  themeOverrides?: boolean,
   onClose?: Function,
   closeOnOverlayClick?: boolean,
   primaryButtonAutoFocus?: boolean,
@@ -34,6 +37,7 @@ export default class Dialog extends Component<Props> {
   render() {
     const {
       title,
+      subtitle,
       children,
       actions,
       closeOnOverlayClick,
@@ -42,6 +46,7 @@ export default class Dialog extends Component<Props> {
       closeButton,
       backButton,
       primaryButtonAutoFocus,
+      themeOverrides,
     } = this.props;
 
     return (
@@ -50,11 +55,18 @@ export default class Dialog extends Component<Props> {
         triggerCloseOnOverlayClick={closeOnOverlayClick}
         onClose={onClose}
         skin={ModalSkin}
+        themeOverrides={themeOverrides ? dialogOverridesStyles : ''}
       >
         <div className={classnames([styles.dialogWrapper, className])}>
           {title && (
             <div className={styles.title}>
               <h1>{title}</h1>
+            </div>
+          )}
+
+          {subtitle && (
+            <div className={styles.subtitle}>
+              <h1>{subtitle}</h1>
             </div>
           )}
 

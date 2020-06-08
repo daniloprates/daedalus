@@ -1,9 +1,8 @@
 // @flow
 export type MenuActions = {
-  openAbout: Function,
-  openDaedalusDiagnostics: Function,
-  goToAdaRedemption: Function,
-  restartInSafeMode: Function,
-  restartWithoutSafeMode: Function,
-  goBlockConsolidationStatus: Function,
+  toggleBlankScreenFix: Function,
+  openAboutDialog: Function,
+  openDaedalusDiagnosticsDialog: Function,
+  openSettingsPage: Function,
+  openWalletSettingsPage: Function,
 };

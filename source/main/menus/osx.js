@@ -1,23 +1,24 @@
 // @flow
 import { compact } from 'lodash';
-import { dialog, shell } from 'electron';
+import { shell } from 'electron';
 import type { App, BrowserWindow } from 'electron';
 import type { MenuActions } from './MenuActions.types';
 import { getTranslation } from '../utils/getTranslation';
 import { environment } from '../environment';
 import { showUiPartChannel } from '../ipc/control-ui-parts';
 import { NOTIFICATIONS } from '../../common/ipc/constants';
-import type { SupportRequests } from '../../common/types/support-requests.types';
+import { generateSupportRequestLink } from '../../common/utils/reporting';
 
 const id = 'menu';
-const { isInSafeMode } = environment;
+const { isBlankScreenFixActive, isIncentivizedTestnet } = environment;
 
 export const osxMenu = (
   app: App,
   window: BrowserWindow,
   actions: MenuActions,
   translations: {},
-  supportRequestData: SupportRequests,
+  locale: string,
+  isUpdateAvailable: boolean,
   translation: Function = getTranslation(translations, id)
 ) => [
   {
@@ -26,29 +27,41 @@ export const osxMenu = (
       {
         label: translation('daedalus.about'),
         click() {
-          actions.openAbout();
+          actions.openAboutDialog();
         },
+        enabled: !isUpdateAvailable,
+      },
+      { type: 'separator' },
+      {
+        label: translation('daedalus.settings'),
+        accelerator: 'Command+,',
+        click() {
+          actions.openSettingsPage();
+        },
+        enabled: !isUpdateAvailable,
       },
       {
-        label: translation('daedalus.adaRedemption'),
+        label: translation('daedalus.walletSettings'),
+        accelerator: 'Command+;',
         click() {
-          actions.goToAdaRedemption();
+          actions.openWalletSettingsPage();
         },
+        enabled: !isUpdateAvailable,
+      },
+      { type: 'separator' },
+      {
+        label: translation('daedalus.hideDaedalus'),
+        role: 'hide',
       },
       {
-        label: translation('daedalus.blockConsolidationStatus'),
-        accelerator: 'Command+B',
-        click() {
-          actions.goBlockConsolidationStatus();
-        },
+        label: translation('daedalus.hideOthers'),
+        role: 'hideothers',
       },
       {
-        label: translation('daedalus.daedalusDiagnostics'),
-        accelerator: 'Command+D',
-        click() {
-          actions.openDaedalusDiagnostics();
-        },
+        label: translation('daedalus.showAll'),
+        role: 'unhide',
       },
+      { type: 'separator' },
       {
         label: translation('daedalus.quit'),
         accelerator: 'Command+Q',
@@ -71,9 +84,7 @@ export const osxMenu = (
         accelerator: 'Shift+Command+Z',
         role: 'redo',
       },
-      {
-        type: 'separator',
-      },
+      { type: 'separator' },
       {
         label: translation('edit.cut'),
         accelerator: 'Command+X',
@@ -120,42 +131,37 @@ export const osxMenu = (
     label: translation('helpSupport'),
     submenu: compact([
       {
-        label: translation('helpSupport.gpuSafeMode'),
-        type: 'checkbox',
-        checked: isInSafeMode,
-        click(item) {
-          const gpuSafeModeDialogOptions = {
-            buttons: [
-              translation('helpSupport.gpuSafeModeDialogConfirm'),
-              translation('helpSupport.gpuSafeModeDialogNo'),
-              translation('helpSupport.gpuSafeModeDialogCancel'),
-            ],
-            type: 'warning',
-            title: isInSafeMode
-              ? translation('helpSupport.gpuSafeModeDialogTitle')
-              : translation('helpSupport.nonGpuSafeModeDialogTitle'),
-            message: isInSafeMode
-              ? translation('helpSupport.gpuSafeModeDialogMessage')
-              : translation('helpSupport.nonGpuSafeModeDialogMessage'),
-            defaultId: 2,
-            cancelId: 2,
-          };
-          dialog.showMessageBox(window, gpuSafeModeDialogOptions, buttonId => {
-            if (buttonId === 0) {
-              if (isInSafeMode) {
-                actions.restartWithoutSafeMode();
-              } else {
-                actions.restartInSafeMode();
-              }
-            }
-            item.checked = isInSafeMode;
-          });
+        label: translation('helpSupport.knownIssues'),
+        click() {
+          const faqLink = translation('helpSupport.knownIssuesUrl');
+          shell.openExternal(faqLink);
+        },
+      },
+      !isIncentivizedTestnet
+        ? {
+            label: translation('helpSupport.blankScreenFix'),
+            type: 'checkbox',
+            checked: isBlankScreenFixActive,
+            click(item) {
+              actions.toggleBlankScreenFix(item);
+            },
+          }
+        : null,
+      { type: 'separator' },
+      {
+        label: translation('helpSupport.safetyTips'),
+        click() {
+          const safetyTipsLinkUrl = translation('helpSupport.safetyTipsUrl');
+          shell.openExternal(safetyTipsLinkUrl);
         },
       },
       {
-        label: translation('helpSupport.downloadLogs'),
+        label: translation('helpSupport.featureRequest'),
         click() {
-          showUiPartChannel.send(NOTIFICATIONS.DOWNLOAD_LOGS, window);
+          const featureRequestLinkUrl = translation(
+            'helpSupport.featureRequestUrl'
+          );
+          shell.openExternal(featureRequestLinkUrl);
         },
       },
       {
@@ -164,23 +170,29 @@ export const osxMenu = (
           const supportRequestLinkUrl = translation(
             'helpSupport.supportRequestUrl'
           );
-          const supportUrl = `${supportRequestLinkUrl}?${Object.entries(
-            supportRequestData
-          )
-            .map(
-              ([key, val]: [string, any]) =>
-                `${encodeURIComponent(key)}=${encodeURIComponent(val)}`
-            )
-            .join('&')}`;
+          const supportUrl = generateSupportRequestLink(
+            supportRequestLinkUrl,
+            environment,
+            locale
+          );
           shell.openExternal(supportUrl);
         },
       },
       {
-        label: translation('helpSupport.knownIssues'),
+        label: translation('helpSupport.downloadLogs'),
         click() {
-          const faqLink = translation('helpSupport.knownIssuesUrl');
-          shell.openExternal(faqLink);
+          showUiPartChannel.send(NOTIFICATIONS.DOWNLOAD_LOGS, window);
         },
+        enabled: !isUpdateAvailable,
+      },
+      { type: 'separator' },
+      {
+        label: translation('helpSupport.daedalusDiagnostics'),
+        accelerator: 'Command+D',
+        click() {
+          actions.openDaedalusDiagnosticsDialog();
+        },
+        enabled: !isUpdateAvailable,
       },
     ]),
   },

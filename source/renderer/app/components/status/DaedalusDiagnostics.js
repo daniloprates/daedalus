@@ -1,28 +1,29 @@
 // @flow
-import React, { Component } from 'react';
+import React, { Component, Fragment } from 'react';
+import type { Node } from 'react';
+import classNames from 'classnames';
 import { observer } from 'mobx-react';
 import { get, includes, upperFirst } from 'lodash';
 import { defineMessages, intlShape } from 'react-intl';
-import moment from 'moment';
-import classNames from 'classnames';
+import CopyToClipboard from 'react-copy-to-clipboard';
 import { Tooltip } from 'react-polymorph/lib/components/Tooltip';
 import { TooltipSkin } from 'react-polymorph/lib/skins/simple/TooltipSkin';
+import { Link } from 'react-polymorph/lib/components/Link';
+import { LinkSkin } from 'react-polymorph/lib/skins/simple/LinkSkin';
 import SVGInline from 'react-svg-inline';
-import {
-  ALLOWED_TIME_DIFFERENCE,
-  MAX_ALLOWED_STALL_DURATION,
-} from '../../config/timingConfig';
-import { UNSYNCED_BLOCKS_ALLOWED } from '../../config/numbersConfig';
-import { getNetworkEkgUrl } from '../../utils/network';
-import closeCross from '../../assets/images/close-cross.inline.svg';
+import { BigNumber } from 'bignumber.js';
+import { ALLOWED_TIME_DIFFERENCE } from '../../config/timingConfig';
+import globalMessages from '../../i18n/global-messages';
+import DialogCloseButton from '../widgets/DialogCloseButton';
+import closeCrossThin from '../../assets/images/close-cross-thin.inline.svg';
+import iconCopy from '../../assets/images/clipboard-ic.inline.svg';
 import LocalizableError from '../../i18n/LocalizableError';
 import { CardanoNodeStates } from '../../../../common/types/cardano-node.types';
 import styles from './DaedalusDiagnostics.scss';
 import type { CardanoNodeState } from '../../../../common/types/cardano-node.types';
 import type { SystemInfo } from '../../types/systemInfoTypes';
 import type { CoreSystemInfo } from '../../types/coreSystemInfoTypes';
-
-let syncingInterval = null;
+import type { TipInfo } from '../../api/network/types';
 
 const messages = defineMessages({
   systemInfo: {
@@ -37,8 +38,8 @@ const messages = defineMessages({
   },
   platformVersion: {
     id: 'daedalus.diagnostics.dialog.platform.version',
-    defaultMessage: '!!!Platform Version',
-    description: 'Platform Version',
+    defaultMessage: '!!!Platform version',
+    description: 'Platform version',
   },
   cpu: {
     id: 'daedalus.diagnostics.dialog.cpu',
@@ -55,6 +56,16 @@ const messages = defineMessages({
     defaultMessage: '!!!Available disk space',
     description: 'Available disk space',
   },
+  unknownDiskSpace: {
+    id: 'daedalus.diagnostics.dialog.unknownDiskSpace',
+    defaultMessage: '!!!Unknown',
+    description: 'Unknown amount of disk space',
+  },
+  unknownDiskSpaceSupportUrl: {
+    id: 'daedalus.diagnostics.dialog.unknownDiskSpaceSupportUrl',
+    defaultMessage: '!!!https://iohk.zendesk.com/hc',
+    description: '"Support" link URL while disk space is unknown',
+  },
   coreInfo: {
     id: 'daedalus.diagnostics.dialog.coreInfo',
     defaultMessage: '!!!CORE INFO',
@@ -62,48 +73,73 @@ const messages = defineMessages({
   },
   daedalusVersion: {
     id: 'daedalus.diagnostics.dialog.daedalusVersion',
-    defaultMessage: '!!!Daedalus Version',
-    description: 'Daedalus Version',
+    defaultMessage: '!!!Daedalus version',
+    description: 'Daedalus version',
+  },
+  daedalusBuildNumber: {
+    id: 'daedalus.diagnostics.dialog.daedalusBuildNumber',
+    defaultMessage: '!!!Daedalus build number',
+    description: 'Daedalus build number',
   },
   daedalusMainProcessID: {
     id: 'daedalus.diagnostics.dialog.daedalusMainProcessID',
-    defaultMessage: '!!!Daedalus Main Process ID',
-    description: 'Daedalus Main Process ID',
+    defaultMessage: '!!!Daedalus main process ID',
+    description: 'Daedalus main process ID',
   },
   daedalusProcessID: {
     id: 'daedalus.diagnostics.dialog.daedalusProcessID',
-    defaultMessage: '!!!Daedalus Renderer Process ID',
-    description: 'Daedalus Renderer Process ID',
+    defaultMessage: '!!!Daedalus renderer process ID',
+    description: 'Daedalus renderer process ID',
   },
-  safeMode: {
-    id: 'daedalus.diagnostics.dialog.safeMode',
-    defaultMessage: '!!!Daedalus is running in safe mode',
-    description: 'Daedalus is running in safe mode',
+  blankScreenFix: {
+    id: 'daedalus.diagnostics.dialog.blankScreenFix',
+    defaultMessage: "!!!Daedalus 'Blank Screen Fix' active",
+    description: "Daedalus 'Blank Screen Fix' active",
   },
-  cardanoVersion: {
-    id: 'daedalus.diagnostics.dialog.cardanoVersion',
-    defaultMessage: '!!!Cardano Version',
-    description: 'Cardano Version',
+  cardanoNodeVersion: {
+    id: 'daedalus.diagnostics.dialog.cardanoNodeVersion',
+    defaultMessage: '!!!Cardano node version',
+    description: 'Cardano node version',
   },
-  cardanoProcessID: {
-    id: 'daedalus.diagnostics.dialog.cardanoProcessID',
-    defaultMessage: '!!!Cardano Process ID',
-    description: 'Cardano Process ID',
+  cardanoNodePID: {
+    id: 'daedalus.diagnostics.dialog.cardanoNodePID',
+    defaultMessage: '!!!Cardano node process ID',
+    description: 'Cardano node process ID',
   },
-  cardanoApiPort: {
-    id: 'daedalus.diagnostics.dialog.cardanoApiPort',
-    defaultMessage: '!!!Cardano API Port',
-    description: 'Cardano API Port',
+  cardanoNodeApiPort: {
+    id: 'daedalus.diagnostics.dialog.cardanoNodeApiPort',
+    defaultMessage: '!!!Cardano node port',
+    description: 'Cardano node port',
+  },
+  cardanoWalletPID: {
+    id: 'daedalus.diagnostics.dialog.cardanoWalletPID',
+    defaultMessage: '!!!Cardano wallet process ID',
+    description: 'Cardano wallet process ID',
+  },
+  cardanoWalletVersion: {
+    id: 'daedalus.diagnostics.dialog.cardanoWalletVersion',
+    defaultMessage: '!!!Cardano wallet version',
+    description: 'Cardano wallet version',
+  },
+  cardanoWalletApiPort: {
+    id: 'daedalus.diagnostics.dialog.cardanoWalletApiPort',
+    defaultMessage: '!!!Cardano wallet port',
+    description: 'Cardano wallet port',
   },
   cardanoNetwork: {
     id: 'daedalus.diagnostics.dialog.cardanoNetwork',
-    defaultMessage: '!!!Cardano Network',
-    description: 'Cardano Network',
+    defaultMessage: '!!!Cardano network',
+    description: 'Cardano network',
   },
   stateDirectoryPath: {
     id: 'daedalus.diagnostics.dialog.stateDirectory',
-    defaultMessage: '!!!Daedalus State Directory',
-    description: 'Daedalus State Directory',
+    defaultMessage: '!!!Daedalus state directory',
+    description: 'Daedalus state directory',
+  },
+  stateDirectoryPathOpenBtn: {
+    id: 'daedalus.diagnostics.dialog.stateDirectoryPathOpenBtn',
+    defaultMessage: '!!!Open',
+    description: 'Open',
   },
   connectionError: {
     id: 'daedalus.diagnostics.dialog.connectionError',
@@ -127,53 +163,28 @@ const messages = defineMessages({
   },
   syncPercentage: {
     id: 'daedalus.diagnostics.dialog.syncPercentage',
-    defaultMessage: '!!!Sync Percentage',
-    description: 'Sync Percentage',
-  },
-  networkBlockHeight: {
-    id: 'daedalus.diagnostics.dialog.networkBlockHeight',
-    defaultMessage: '!!!Network Block Height',
-    description: 'Network Block Height',
-  },
-  localBlockHeight: {
-    id: 'daedalus.diagnostics.dialog.localBlockHeight',
-    defaultMessage: '!!!Local Block Height',
-    description: 'Local Block Height',
-  },
-  remainingUnsyncedBlocks: {
-    id: 'daedalus.diagnostics.dialog.remainingUnsyncedBlocks',
-    defaultMessage: '!!!Remaining Unsynced Blocks',
-    description: 'Remaining Unsynced Blocks',
-  },
-  latestLocalBlockAge: {
-    id: 'daedalus.diagnostics.dialog.latestLocalBlockAge',
-    defaultMessage: '!!!Latest Local Block Age',
-    description: 'Latest Local Block Age',
-  },
-  latestNetworkBlockAge: {
-    id: 'daedalus.diagnostics.dialog.latestNetworkBlockAge',
-    defaultMessage: '!!!Latest Network Block Age',
-    description: 'Latest Network Block Age',
+    defaultMessage: '!!!Sync percentage',
+    description: 'Sync percentage',
   },
   localTimeDifference: {
     id: 'daedalus.diagnostics.dialog.localTimeDifference',
-    defaultMessage: '!!!Local Time Difference',
-    description: 'Local Time Difference',
+    defaultMessage: '!!!Local time difference',
+    description: 'Local time difference',
   },
   systemTimeCorrect: {
     id: 'daedalus.diagnostics.dialog.systemTimeCorrect',
-    defaultMessage: '!!!System Time Correct',
-    description: 'System Time Correct',
+    defaultMessage: '!!!System time correct',
+    description: 'System time correct',
   },
   systemTimeIgnored: {
     id: 'daedalus.diagnostics.dialog.systemTimeIgnored',
-    defaultMessage: '!!!System Time Ignored',
-    description: 'System Time Ignored',
+    defaultMessage: '!!!System time ignored',
+    description: 'System time ignored',
   },
   checkingNodeTime: {
     id: 'daedalus.diagnostics.dialog.checkingNodeTime',
-    defaultMessage: '!!!Checking Node Time',
-    description: 'Checking Node Time',
+    defaultMessage: '!!!Checking system time',
+    description: 'Checking system time',
   },
   cardanoNodeStatus: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeStatus',
@@ -182,28 +193,18 @@ const messages = defineMessages({
   },
   cardanoNodeStatusRestarting: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeStatusRestarting',
-    defaultMessage: '!!!Restarting Cardano Node...',
-    description: 'Restarting Cardano Node...',
+    defaultMessage: '!!!Restarting Cardano node...',
+    description: 'Restarting Cardano node...',
   },
   cardanoNodeStatusRestart: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeStatusRestart',
-    defaultMessage: '!!!Restart Cardano Node',
-    description: 'Restart Cardano Node',
-  },
-  cardanoNodeDiagnostics: {
-    id: 'daedalus.diagnostics.dialog.cardanoNodeDiagnostics',
-    defaultMessage: '!!!Cardano Node Diagnostics',
-    description: 'Cardano Node Diagnostics',
-  },
-  realtimeStatisticsMonitor: {
-    id: 'daedalus.diagnostics.dialog.realtimeStatisticsMonitor',
-    defaultMessage: '!!!Realtime statistics monitor',
-    description: 'Realtime statistics monitor',
+    defaultMessage: '!!!Restart Cardano node',
+    description: 'Restart Cardano node',
   },
   cardanoNodeState: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeState',
-    defaultMessage: '!!!Cardano Node State',
-    description: 'Cardano Node State',
+    defaultMessage: '!!!Cardano node state',
+    description: 'Cardano node state',
   },
   nodeHasBeenUpdated: {
     id: 'daedalus.diagnostics.dialog.nodeHasBeenUpdated',
@@ -257,28 +258,28 @@ const messages = defineMessages({
   },
   cardanoNodeResponding: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeResponding',
-    defaultMessage: '!!!Node Responding',
-    description: 'Node Responding',
+    defaultMessage: '!!!Cardano node responding',
+    description: 'Cardano node responding',
   },
   cardanoNodeSubscribed: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeSubscribed',
-    defaultMessage: '!!!Node Subscribed',
-    description: 'Node Subscribed',
+    defaultMessage: '!!!Cardano node subscribed',
+    description: 'Cardano node subscribed',
   },
   cardanoNodeTimeCorrect: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeTimeCorrect',
-    defaultMessage: '!!!Node Time Correct',
-    description: 'Node Time Correct',
+    defaultMessage: '!!!Cardano node time correct',
+    description: 'Cardano node time correct',
   },
   cardanoNodeSyncing: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeSyncing',
-    defaultMessage: '!!!Node Syncing',
-    description: 'Node Syncing',
+    defaultMessage: '!!!Cardano node syncing',
+    description: 'Cardano node syncing',
   },
   cardanoNodeInSync: {
     id: 'daedalus.diagnostics.dialog.cardanoNodeInSync',
-    defaultMessage: '!!!Node In Sync',
-    description: 'Node In Sync',
+    defaultMessage: '!!!Cardano node in sync',
+    description: 'Cardano node in sync',
   },
   localTimeDifferenceChecking: {
     id: 'daedalus.diagnostics.dialog.localTimeDifferenceChecking',
@@ -302,8 +303,38 @@ const messages = defineMessages({
   },
   serviceUnreachable: {
     id: 'daedalus.diagnostics.dialog.serviceUnreachable',
-    defaultMessage: '!!!NTP Service unreachable',
-    description: 'NTP Service unreachable',
+    defaultMessage: '!!!NTP service unreachable',
+    description: 'NTP service unreachable',
+  },
+  message: {
+    id: 'daedalus.diagnostics.dialog.message',
+    defaultMessage: '!!!message',
+    description: 'message',
+  },
+  code: {
+    id: 'daedalus.diagnostics.dialog.code',
+    defaultMessage: '!!!code',
+    description: 'code',
+  },
+  lastNetworkBlock: {
+    id: 'daedalus.diagnostics.dialog.lastNetworkBlock',
+    defaultMessage: '!!!Last network block',
+    description: 'Last network block',
+  },
+  lastSynchronizedBlock: {
+    id: 'daedalus.diagnostics.dialog.lastSynchronizedBlock',
+    defaultMessage: '!!!Last synchronized block',
+    description: 'Last synchronized block',
+  },
+  epoch: {
+    id: 'daedalus.diagnostics.dialog.epoch',
+    defaultMessage: '!!!epoch',
+    description: 'epoch',
+  },
+  slot: {
+    id: 'daedalus.diagnostics.dialog.slot',
+    defaultMessage: '!!!slot',
+    description: 'slot',
   },
 });
 
@@ -311,12 +342,8 @@ type Props = {
   systemInfo: SystemInfo,
   coreInfo: CoreSystemInfo,
   cardanoNodeState: ?CardanoNodeState,
-  isDev: boolean,
-  isMainnet: boolean,
-  isStaging: boolean,
-  isTestnet: boolean,
   isNodeResponding: boolean,
-  isNodeSubscribed: boolean,
+  // isNodeSubscribed: boolean,
   isNodeSyncing: boolean,
   isNodeInSync: boolean,
   isNodeTimeCorrect: boolean,
@@ -325,27 +352,31 @@ type Props = {
   isSynced: boolean,
   syncPercentage: number,
   localTimeDifference: ?number,
-  isSystemTimeIgnored: boolean,
   isSystemTimeCorrect: boolean,
-  isForceCheckingNodeTime: boolean,
-  latestLocalBlockTimestamp: number,
-  latestNetworkBlockTimestamp: number,
-  localBlockHeight: number,
-  networkBlockHeight: number,
-  onForceCheckLocalTimeDifference: Function,
+  isSystemTimeIgnored: boolean,
+  isCheckingSystemTime: boolean,
+  isForceCheckingSystemTime: boolean,
+  localTip: ?TipInfo,
+  networkTip: ?TipInfo,
+  onOpenStateDirectory: Function,
   onOpenExternalLink: Function,
   onRestartNode: Function,
   onClose: Function,
+  onCopyStateDirectoryPath: Function,
+  onForceCheckNetworkClock: Function,
 };
 
 type State = {
-  data: Array<{
-    localBlockHeight: ?number,
-    networkBlockHeight: ?number,
-    time: number,
-  }>,
   isNodeRestarting: boolean,
 };
+
+const FINAL_CARDANO_NODE_STATES = [
+  CardanoNodeStates.RUNNING,
+  CardanoNodeStates.UPDATED,
+  CardanoNodeStates.CRASHED,
+  CardanoNodeStates.ERRORED,
+  CardanoNodeStates.UNRECOVERABLE,
+];
 
 @observer
 export default class DaedalusDiagnostics extends Component<Props, State> {
@@ -355,94 +386,66 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    let { localBlockHeight, networkBlockHeight } = props;
-    localBlockHeight = localBlockHeight || null;
-    networkBlockHeight = networkBlockHeight || null;
     this.state = {
-      data: [
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 20000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 18000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 16000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 14000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 12000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 10000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 8000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 6000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 4000).format('HH:mm:ss'),
-        },
-        {
-          localBlockHeight,
-          networkBlockHeight,
-          time: moment(Date.now() - 2000).format('HH:mm:ss'),
-        },
-      ],
       isNodeRestarting: false,
     };
   }
 
-  componentWillMount() {
-    syncingInterval = setInterval(this.syncingTimer, 2000);
-  }
-
-  componentWillReceiveProps(nextProps: Props) {
+  // eslint-disable-next-line
+  UNSAFE_componentWillReceiveProps(nextProps: Props) {
     const { cardanoNodeState } = this.props;
     const { cardanoNodeState: nextCardanoNodeState } = nextProps;
-    const { isNodeRestarting } = this.state;
-    const finalCardanoNodeStates = [
-      CardanoNodeStates.RUNNING,
-      CardanoNodeStates.STOPPED,
-      CardanoNodeStates.UPDATED,
-      CardanoNodeStates.CRASHED,
-      CardanoNodeStates.ERRORED,
-      CardanoNodeStates.UNRECOVERABLE,
-    ];
     if (
-      isNodeRestarting &&
-      cardanoNodeState === CardanoNodeStates.STARTING &&
-      includes(finalCardanoNodeStates, nextCardanoNodeState)
+      cardanoNodeState !== nextCardanoNodeState &&
+      includes(FINAL_CARDANO_NODE_STATES, nextCardanoNodeState)
     ) {
       this.setState({ isNodeRestarting: false });
     }
   }
 
-  componentWillUnmount() {
-    this.resetSyncingTimer();
-  }
+  getSectionRow = (messageId: string, content?: Node) => {
+    return (
+      <div className={styles.layoutRow}>
+        <div className={styles.sectionTitle}>
+          <span>{this.context.intl.formatMessage(messages[messageId])}</span>
+          {content}
+          <hr />
+        </div>
+      </div>
+    );
+  };
+
+  getRow = (messageId: string, value: Node | boolean) => {
+    const { intl } = this.context;
+    const key = intl.formatMessage(messages[messageId]);
+    const colon = intl.formatMessage(globalMessages.punctuationColon);
+    let content = value;
+    let className = classNames([styles[messageId], styles.layoutData]);
+    const classNameHeader = classNames([
+      styles[messageId],
+      styles.layoutHeader,
+    ]);
+    const classNameRow = classNames([styles.layoutRow, messageId]);
+    if (typeof value === 'boolean') {
+      content = value
+        ? intl.formatMessage(messages.statusOn)
+        : intl.formatMessage(messages.statusOff);
+      className =
+        (value && messageId !== 'systemTimeIgnored') ||
+        (!value && messageId === 'systemTimeIgnored')
+          ? classNames([className, styles.green])
+          : classNames([className, styles.red]);
+    }
+    return (
+      <div className={classNameRow}>
+        <div className={classNameHeader}>
+          {key}
+          {colon}
+        </div>
+        <div className={className}>{content}</div>
+      </div>
+    );
+  };
 
   render() {
     const { intl } = this.context;
@@ -452,7 +455,7 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
       coreInfo,
       cardanoNodeState,
       isNodeResponding,
-      isNodeSubscribed,
+      // isNodeSubscribed,
       isNodeSyncing,
       isNodeInSync,
       isNodeTimeCorrect,
@@ -461,20 +464,16 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
       syncPercentage,
       localTimeDifference,
       isSystemTimeCorrect,
-      isForceCheckingNodeTime,
-      localBlockHeight,
-      networkBlockHeight,
-      latestLocalBlockTimestamp,
-      latestNetworkBlockTimestamp,
-      onForceCheckLocalTimeDifference,
-      onClose,
-      nodeConnectionError,
       isSystemTimeIgnored,
+      localTip,
+      networkTip,
+      onOpenStateDirectory,
+      onClose,
+      onCopyStateDirectoryPath,
+      nodeConnectionError,
       onOpenExternalLink,
-      isDev,
-      isTestnet,
-      isStaging,
-      isMainnet,
+      isCheckingSystemTime,
+      isForceCheckingSystemTime,
     } = this.props;
 
     const {
@@ -487,12 +486,16 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
 
     const {
       daedalusVersion,
+      daedalusBuildNumber,
       daedalusProcessID,
       daedalusMainProcessID,
-      isInSafeMode,
-      cardanoVersion,
-      cardanoProcessID,
-      cardanoAPIPort,
+      isBlankScreenFixActive,
+      cardanoNodeVersion,
+      cardanoNodePID,
+      cardanoWalletVersion,
+      cardanoWalletPID,
+      cardanoWalletApiPort,
+      cardanoRawNetwork,
       cardanoNetwork,
       daedalusStateDirectoryPath,
     } = coreInfo;
@@ -502,344 +505,249 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
     const connectionError = get(nodeConnectionError, 'values', '{}');
     const { message, code } = connectionError;
 
-    const localTimeDifferenceClasses = classNames([
-      !isNTPServiceReachable ||
-      (localTimeDifference && localTimeDifference > ALLOWED_TIME_DIFFERENCE)
-        ? styles.red
-        : styles.green,
-    ]);
-
-    const remainingUnsyncedBlocks = networkBlockHeight - localBlockHeight;
-    const remainingUnsyncedBlocksClasses = classNames([
-      remainingUnsyncedBlocks < 0 ||
-      remainingUnsyncedBlocks > UNSYNCED_BLOCKS_ALLOWED
-        ? styles.red
-        : styles.green,
-    ]);
-
-    const latestLocalBlockAge = moment(Date.now()).diff(
-      moment(latestLocalBlockTimestamp)
+    const unknownDiskSpaceSupportUrl = intl.formatMessage(
+      messages.unknownDiskSpaceSupportUrl
     );
-    const isLocalBlockHeightStalling =
-      latestLocalBlockAge > MAX_ALLOWED_STALL_DURATION;
-    const latestLocalBlockAgeClasses = classNames([
-      latestLocalBlockTimestamp > 0 && !isLocalBlockHeightStalling
-        ? styles.green
-        : styles.red,
-    ]);
 
-    const latestNetworkBlockAge = moment(Date.now()).diff(
-      moment(latestNetworkBlockTimestamp)
+    let cardanoNetworkValue = intl.formatMessage(
+      globalMessages[`network_${cardanoNetwork}`]
     );
-    const isNetworkBlockHeightStalling =
-      latestNetworkBlockAge > MAX_ALLOWED_STALL_DURATION;
-    const latestNetworkBlockAgeClasses = classNames([
-      latestNetworkBlockTimestamp > 0 && !isNetworkBlockHeightStalling
-        ? styles.green
-        : styles.red,
-    ]);
 
-    // Cardano Node EKG server is not enabled for the Mainnet!
-    const cardanoNodeEkgLink = isMainnet
-      ? false
-      : getNetworkEkgUrl({
-          isDev,
-          isStaging,
-          isTestnet,
-        });
+    if (cardanoRawNetwork && cardanoNetwork !== cardanoRawNetwork) {
+      const cardanoRawNetworkValue = intl.formatMessage(
+        globalMessages[`network_${cardanoRawNetwork}`]
+      );
+      cardanoNetworkValue += ` (${cardanoRawNetworkValue})`;
+    }
+
+    const localTimeDifferenceClasses = isCheckingSystemTime
+      ? classNames([styles.layoutData, styles.localTimeDifference])
+      : classNames([
+          styles.layoutData,
+          styles.localTimeDifference,
+          !isNTPServiceReachable ||
+          (localTimeDifference &&
+            Math.abs(localTimeDifference) > ALLOWED_TIME_DIFFERENCE)
+            ? styles.red
+            : styles.green,
+        ]);
+
+    const { getSectionRow, getRow } = this;
 
     return (
       <div className={styles.component}>
+        <DialogCloseButton
+          className={styles.closeButton}
+          icon={closeCrossThin}
+          onClose={onClose}
+        />
+
         <div className={styles.tables}>
-          <table className={styles.table}>
-            <tbody>
-              <tr>
-                <th colSpan={2}>
-                  {intl.formatMessage(messages.systemInfo)}
-                  <hr />
-                </th>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.platform)}:</td>
-                <td>{platform}</td>
-              </tr>
-              <tr className={styles.platformVersion}>
-                <td>{intl.formatMessage(messages.platformVersion)}:</td>
-                <td className={styles.platform}>{platformVersion}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cpu)}:</td>
+          <div className={styles.table}>
+            <div>
+              {getSectionRow('cardanoNodeStatus')}
+              {getRow('platform', platform)}
+              {getRow('platformVersion', platformVersion)}
+              {getRow(
+                'cpu',
                 <Tooltip skin={TooltipSkin} tip={cpu}>
-                  <td>{cpu}</td>
+                  {cpu}
                 </Tooltip>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.ram)}:</td>
-                <td>{ram}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.availableDiskSpace)}:</td>
-                <td>{availableDiskSpace}</td>
-              </tr>
-              <tr>
-                <th colSpan={2}>
-                  {intl.formatMessage(messages.coreInfo)}
-                  <hr />
-                </th>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.daedalusVersion)}:</td>
-                <td>{daedalusVersion}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.daedalusMainProcessID)}:</td>
-                <td>{daedalusMainProcessID}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.daedalusProcessID)}:</td>
-                <td>{daedalusProcessID}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.safeMode)}:</td>
-                <td className={styles.safeMode}>
-                  {isInSafeMode
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoVersion)}:</td>
-                <td>{cardanoVersion}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoProcessID)}:</td>
-                <td>{cardanoProcessID}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoApiPort)}:</td>
-                <td>{cardanoAPIPort || '-'}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNetwork)}:</td>
-                <td>{cardanoNetwork}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.stateDirectoryPath)}:</td>
-                <Tooltip skin={TooltipSkin} tip={daedalusStateDirectoryPath}>
-                  <td className={styles.stateDirectoryPath}>
-                    {daedalusStateDirectoryPath}
-                  </td>
-                </Tooltip>
-              </tr>
-              {!isConnected && nodeConnectionError ? (
-                <tr>
-                  <td className={styles.topPadding} colSpan={2}>
-                    {intl.formatMessage(messages.connectionError)}
-                    <br />
-                    <Tooltip skin={TooltipSkin} tip={message}>
-                      <div className={styles.error}>
-                        message: {message || '-'}
-                        <br />
-                        code: {code || '-'}
-                      </div>
-                    </Tooltip>
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+              )}
+              {getRow('ram', ram)}
+              {getRow(
+                'availableDiskSpace',
+                availableDiskSpace || (
+                  <Link
+                    onClick={() =>
+                      onOpenExternalLink(unknownDiskSpaceSupportUrl)
+                    }
+                    label={intl.formatMessage(messages.unknownDiskSpace)}
+                    skin={LinkSkin}
+                  />
+                )
+              )}
+            </div>
+            <div>
+              {getSectionRow('coreInfo')}
+              {getRow('daedalusVersion', daedalusVersion)}
+              {getRow('daedalusBuildNumber', daedalusBuildNumber)}
+              {getRow('daedalusMainProcessID', daedalusMainProcessID)}
+              {getRow('daedalusProcessID', daedalusProcessID)}
+              {getRow(
+                'blankScreenFix',
+                isBlankScreenFixActive
+                  ? intl.formatMessage(messages.statusOn)
+                  : intl.formatMessage(messages.statusOff)
+              )}
+              {getRow(
+                'stateDirectoryPath',
+                <Fragment>
+                  <button
+                    className={styles.stateDirectoryOpenBtn}
+                    onClick={() =>
+                      onOpenStateDirectory(daedalusStateDirectoryPath)
+                    }
+                  >
+                    {intl.formatMessage(messages.stateDirectoryPathOpenBtn)}
+                  </button>
+                  <CopyToClipboard
+                    text={daedalusStateDirectoryPath}
+                    onCopy={onCopyStateDirectoryPath}
+                  >
+                    <div className={styles.stateDirectoryPath}>
+                      <Tooltip
+                        skin={TooltipSkin}
+                        tip={
+                          <div className={styles.tooltipLabelWrapper}>
+                            <div>{daedalusStateDirectoryPath}</div>
+                          </div>
+                        }
+                      >
+                        <div className={styles.daedalusStateDirectoryPath}>
+                          {daedalusStateDirectoryPath}
+                        </div>
+                        <SVGInline svg={iconCopy} />
+                      </Tooltip>
+                    </div>
+                  </CopyToClipboard>
+                </Fragment>
+              )}
+              {getRow('cardanoNodeVersion', cardanoNodeVersion)}
+              {getRow('cardanoNodePID', cardanoNodePID || '-')}
+              {/* getRow('cardanoNodeApiPort', '-') */}
+              {getRow('cardanoWalletVersion', cardanoWalletVersion)}
+              {getRow('cardanoWalletPID', cardanoWalletPID || '-')}
+              {getRow('cardanoWalletApiPort', cardanoWalletApiPort || '-')}
+            </div>
+            {isConnected && nodeConnectionError ? (
+              <div>
+                {getSectionRow('connectionError')}
+                <div className={styles.layoutRow}>
+                  <div className={styles.layoutHeader}>
+                    <div className={styles.error}>
+                      {intl.formatMessage(messages.message)}: {message || '-'}
+                      <br />
+                      {intl.formatMessage(messages.code)}: {code || '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
 
-          <table className={styles.table}>
-            <tbody>
-              <tr>
-                <th colSpan={2}>
-                  {intl.formatMessage(messages.daedalusStatus)}
-                  <hr />
-                </th>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.connected)}:</td>
-                <td className={this.getClass(isConnected)}>
-                  {isConnected
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.synced)}:</td>
-                <td className={this.getClass(isSynced)}>
-                  {isSynced
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.syncPercentage)}:</td>
-                <td>{syncPercentage.toFixed(2)}%</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.networkBlockHeight)}:</td>
-                <td>{networkBlockHeight}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.localBlockHeight)}:</td>
-                <td>{localBlockHeight}</td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.remainingUnsyncedBlocks)}:</td>
-                <td className={remainingUnsyncedBlocksClasses}>
-                  {remainingUnsyncedBlocks >= 0 ? remainingUnsyncedBlocks : '-'}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.latestLocalBlockAge)}:</td>
-                <td className={latestLocalBlockAgeClasses}>
-                  {latestLocalBlockTimestamp > 0
-                    ? `${latestLocalBlockAge} ms`
-                    : '-'}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.latestNetworkBlockAge)}:</td>
-                <td className={latestNetworkBlockAgeClasses}>
-                  {latestNetworkBlockTimestamp > 0
-                    ? `${latestNetworkBlockAge} ms`
-                    : '-'}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.localTimeDifference)}:</td>
-                <td className={styles.localTimeDifferenceItem}>
-                  <button
-                    onClick={() => onForceCheckLocalTimeDifference()}
-                    disabled={isForceCheckingNodeTime || !isConnected}
-                  >
-                    {isForceCheckingNodeTime
-                      ? intl.formatMessage(messages.localTimeDifferenceChecking)
-                      : intl.formatMessage(
-                          messages.localTimeDifferenceCheckTime
-                        )}
-                  </button>
-                  <span className={localTimeDifferenceClasses}>
-                    {isNTPServiceReachable
-                      ? `${localTimeDifference || 0} μs`
-                      : intl.formatMessage(messages.serviceUnreachable)}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.systemTimeCorrect)}:</td>
-                <td className={this.getClass(isSystemTimeCorrect)}>
-                  {isSystemTimeCorrect
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.systemTimeIgnored)}:</td>
-                <td className={this.getClass(!isSystemTimeIgnored)}>
-                  {isSystemTimeIgnored
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.checkingNodeTime)}:</td>
-                <td>
-                  {isForceCheckingNodeTime
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <th colSpan={2}>
-                  {intl.formatMessage(messages.cardanoNodeStatus)}
-                  <button
-                    className={styles.statusBtn}
-                    onClick={() => this.restartNode()}
-                    disabled={isNodeRestarting}
-                  >
-                    {isNodeRestarting
-                      ? intl.formatMessage(messages.cardanoNodeStatusRestarting)
-                      : intl.formatMessage(messages.cardanoNodeStatusRestart)}
-                  </button>
-                  <hr />
-                </th>
-              </tr>
-              {cardanoNodeEkgLink ? (
-                <tr>
-                  <td>
-                    {intl.formatMessage(messages.cardanoNodeDiagnostics)}:
-                  </td>
-                  <td>
+          <div className={styles.table}>
+            <div>
+              {getSectionRow('daedalusStatus')}
+              {getRow('cardanoNetwork', cardanoNetworkValue)}
+              {getRow('connected', isConnected)}
+              {getRow('synced', isSynced)}
+              {getRow(
+                'syncPercentage',
+                `${new BigNumber(
+                  parseFloat(syncPercentage).toFixed(2)
+                ).toFormat(2)}%`
+              )}
+              {getRow(
+                'lastNetworkBlock',
+                <Fragment>
+                  <span>{intl.formatMessage(messages.epoch)}:</span>{' '}
+                  {get(networkTip, 'epoch', '-')}
+                  <span>{intl.formatMessage(messages.slot)}:</span>{' '}
+                  {get(networkTip, 'slot', '-')}
+                </Fragment>
+              )}
+              {getRow(
+                'lastSynchronizedBlock',
+                <Fragment>
+                  <span>{intl.formatMessage(messages.epoch)}:</span>{' '}
+                  {get(localTip, 'epoch', '-')}
+                  <span>{intl.formatMessage(messages.slot)}:</span>{' '}
+                  {get(localTip, 'slot', '-')}
+                </Fragment>
+              )}
+              <div className={styles.layoutRow}>
+                <div className={styles.layoutHeader}>
+                  {intl.formatMessage(messages.localTimeDifference)}
+                  {intl.formatMessage(globalMessages.punctuationColon)}
+                </div>
+                <div className={localTimeDifferenceClasses}>
+                  {
                     <button
-                      className={styles.realTimeStatusBtn}
-                      onClick={() => onOpenExternalLink(cardanoNodeEkgLink)}
+                      onClick={() => this.checkTime()}
+                      disabled={isForceCheckingSystemTime || !isNodeResponding}
                     >
-                      {intl.formatMessage(messages.realtimeStatisticsMonitor)}
+                      {isForceCheckingSystemTime
+                        ? intl.formatMessage(
+                            messages.localTimeDifferenceChecking
+                          )
+                        : intl.formatMessage(
+                            messages.localTimeDifferenceCheckTime
+                          )}
                     </button>
-                  </td>
-                </tr>
-              ) : null}
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeState)}:</td>
-                <td>
-                  {upperFirst(
-                    cardanoNodeState != null
-                      ? intl.formatMessage(
-                          this.getLocalisationForCardanoNodeState()
-                        )
-                      : 'unknown'
+                  }
+                  {isCheckingSystemTime ? (
+                    <span className={localTimeDifferenceClasses}>-</span>
+                  ) : (
+                    <span className={localTimeDifferenceClasses}>
+                      {isNTPServiceReachable
+                        ? `${new BigNumber(
+                            localTimeDifference || 0
+                          ).toFormat()} μs`
+                        : intl.formatMessage(messages.serviceUnreachable)}
+                    </span>
                   )}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeResponding)}:</td>
-                <td className={this.getClass(isNodeResponding)}>
-                  {isNodeResponding
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeSubscribed)}:</td>
-                <td className={this.getClass(isNodeSubscribed)}>
-                  {isNodeSubscribed
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeTimeCorrect)}:</td>
-                <td className={this.getClass(isNodeTimeCorrect)}>
-                  {isNodeTimeCorrect
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeSyncing)}:</td>
-                <td className={this.getClass(isNodeSyncing)}>
-                  {isNodeSyncing
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-              <tr>
-                <td>{intl.formatMessage(messages.cardanoNodeInSync)}:</td>
-                <td className={this.getClass(isNodeInSync)}>
-                  {isNodeInSync
-                    ? intl.formatMessage(messages.statusOn)
-                    : intl.formatMessage(messages.statusOff)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+              </div>
+              {getRow('systemTimeCorrect', isSystemTimeCorrect)}
+              {getRow('systemTimeIgnored', isSystemTimeIgnored)}
+              {
+                <div className={styles.layoutRow}>
+                  <div className={styles.layoutHeader}>
+                    {intl.formatMessage(messages.checkingNodeTime)}
+                    {intl.formatMessage(globalMessages.punctuationColon)}
+                  </div>
+                  <div className={styles.layoutData}>
+                    {isCheckingSystemTime
+                      ? intl.formatMessage(messages.statusOn)
+                      : intl.formatMessage(messages.statusOff)}
+                  </div>
+                </div>
+              }
+            </div>
+            <div>
+              {getSectionRow(
+                'cardanoNodeStatus',
+                <button
+                  className={styles.cardanoNodeStatusBtn}
+                  onClick={() => this.restartNode()}
+                  disabled={
+                    !includes(FINAL_CARDANO_NODE_STATES, cardanoNodeState)
+                  }
+                >
+                  {isNodeRestarting
+                    ? intl.formatMessage(messages.cardanoNodeStatusRestarting)
+                    : intl.formatMessage(messages.cardanoNodeStatusRestart)}
+                </button>
+              )}
+              {getRow(
+                'cardanoNodeState',
+                upperFirst(
+                  cardanoNodeState != null
+                    ? intl.formatMessage(
+                        this.getLocalisationForCardanoNodeState()
+                      )
+                    : 'unknown'
+                )
+              )}
+              {getRow('cardanoNodeResponding', isNodeResponding)}
+              {/* getRow('cardanoNodeSubscribed', isNodeSubscribed) */}
+              {getRow('cardanoNodeTimeCorrect', isNodeTimeCorrect)}
+              {getRow('cardanoNodeSyncing', isNodeSyncing)}
+              {getRow('cardanoNodeInSync', isNodeInSync)}
+            </div>
+          </div>
         </div>
-
-        <button className={styles.closeButton} onClick={() => onClose()}>
-          <SVGInline svg={closeCross} />
-        </button>
       </div>
     );
   }
@@ -882,29 +790,21 @@ export default class DaedalusDiagnostics extends Component<Props, State> {
     return localisationKey;
   };
 
+  restoreDialogCloseOnEscKey = () => {
+    // This method is to be used on buttons which get disabled after click
+    // as without it the ReactModal is not closing if you press the ESC key
+    // even after the button is later re-enabled
+    document.getElementsByClassName('ReactModal__Content')[0].focus();
+  };
+
+  checkTime = () => {
+    this.props.onForceCheckNetworkClock();
+    this.restoreDialogCloseOnEscKey();
+  };
+
   restartNode = () => {
     this.setState({ isNodeRestarting: true });
     this.props.onRestartNode.trigger();
-  };
-
-  getClass = (isTrue: boolean) =>
-    classNames([isTrue ? styles.green : styles.red]);
-
-  syncingTimer = () => {
-    const { localBlockHeight, networkBlockHeight } = this.props;
-    const { data } = this.state;
-    data.push({
-      localBlockHeight,
-      networkBlockHeight,
-      time: moment().format('HH:mm:ss'),
-    });
-    this.setState({ data: data.slice(-10) });
-  };
-
-  resetSyncingTimer = () => {
-    if (syncingInterval !== null) {
-      clearInterval(syncingInterval);
-      syncingInterval = null;
-    }
+    this.restoreDialogCloseOnEscKey();
   };
 }

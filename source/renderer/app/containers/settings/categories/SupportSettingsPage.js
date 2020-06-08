@@ -3,8 +3,8 @@ import React, { Component } from 'react';
 import { observer, inject } from 'mobx-react';
 import { defineMessages, intlShape } from 'react-intl';
 import SupportSettings from '../../../components/settings/categories/SupportSettings';
+import { generateSupportRequestLink } from '../../../../../common/utils/reporting';
 import type { InjectedProps } from '../../../types/injectedPropsType';
-import { getSupportUrl } from '../../../utils/network';
 
 const messages = defineMessages({
   supportRequestLinkUrl: {
@@ -27,20 +27,26 @@ export default class SupportSettingsPage extends Component<InjectedProps> {
   handleSupportRequestClick = async (
     event: SyntheticEvent<HTMLButtonElement>
   ) => {
-    event.persist();
+    event.preventDefault();
+    event.stopPropagation();
     const { intl } = this.context;
     const supportRequestLinkUrl = intl.formatMessage(
       messages.supportRequestLinkUrl
     );
     const locale = this.props.stores.profile.currentLocale;
-    const supportUrl = await getSupportUrl(supportRequestLinkUrl, locale);
+    const { environment } = this.props.stores.app;
+    const supportUrl = generateSupportRequestLink(
+      supportRequestLinkUrl,
+      environment,
+      locale
+    );
     this.props.stores.app.openExternalLink(supportUrl);
   };
 
   handleDownloadLogs = () => {
     const { app } = this.props.actions;
     app.downloadLogs.trigger();
-    app.setNotificationVisibility.trigger(true);
+    app.setIsDownloadingLogs.trigger(true);
   };
 
   render() {

@@ -1,9 +1,10 @@
 // @flow
 import React, { Component } from 'react';
+import SVGInline from 'react-svg-inline';
 import { defineMessages, intlShape } from 'react-intl';
 import classNames from 'classnames';
-import spinnerIcon from '../../assets/images/top-bar/node-sync-spinner.png';
-import syncedIcon from '../../assets/images/top-bar/node-sync-synced.png';
+import spinnerIcon from '../../assets/images/top-bar/node-sync-spinner.inline.svg';
+import syncedIcon from '../../assets/images/top-bar/node-sync-synced.inline.svg';
 import styles from './NodeSyncStatusIcon.scss';
 
 const messages = defineMessages({
@@ -16,11 +17,8 @@ const messages = defineMessages({
 });
 
 type Props = {
-  networkStatus: {
-    +isSynced: boolean,
-    +syncPercentage: number,
-  },
-  isMainnet: boolean,
+  isSynced: boolean,
+  syncPercentage: number,
 };
 
 export default class NodeSyncStatusIcon extends Component<Props> {
@@ -29,21 +27,21 @@ export default class NodeSyncStatusIcon extends Component<Props> {
   };
 
   render() {
-    const { networkStatus, isMainnet } = this.props;
-    const { isSynced, syncPercentage } = networkStatus;
+    const { isSynced, syncPercentage } = this.props;
     const { intl } = this.context;
     const statusIcon = isSynced ? syncedIcon : spinnerIcon;
     const componentClasses = classNames([
       styles.component,
       isSynced ? styles.synced : styles.syncing,
-      isMainnet && styles.mainnet,
     ]);
+    const percentage = syncPercentage.toFixed(syncPercentage === 100 ? 0 : 2);
+
     return (
       <div className={componentClasses}>
-        <img className={styles.icon} src={statusIcon} role="presentation" />
+        <SVGInline className={styles.icon} svg={statusIcon} />
         <div className={styles.info}>
           {intl.formatMessage(messages.blocksSynced, {
-            percentage: syncPercentage.toFixed(0),
+            percentage,
           })}
         </div>
       </div>

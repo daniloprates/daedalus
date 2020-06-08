@@ -13,6 +13,8 @@ import {
   Bar,
   ResponsiveContainer,
 } from 'recharts';
+import { Link } from 'react-polymorph/lib/components/Link';
+import { LinkSkin } from 'react-polymorph/lib/skins/simple/LinkSkin';
 import BorderedBox from '../../widgets/BorderedBox';
 import Tick from './WalletUtxoTick';
 import CustomTooltip from './WalletUtxoTooltip';
@@ -39,6 +41,17 @@ export const messages = defineMessages({
       '!!!This wallet is empty so it does not contain any UTXOs (unspent transaction outputs).',
     description: 'Empty wallet description for the "Wallet Utxos" screen.',
   },
+  findOutMoreLink: {
+    id: 'wallet.settings.utxos.findOutMoreLink',
+    defaultMessage: '!!!Find out more',
+    description: '"Find out more" link on the "Wallet Utxos" screen.',
+  },
+  findOutMoreLinkUrl: {
+    id: 'wallet.settings.utxos.findOutMoreLinkUrl',
+    defaultMessage:
+      '!!!https://iohk.zendesk.com/hc/en-us/articles/360034118013',
+    description: '"Find out more" link URL on the "Wallet Utxos" screen.',
+  },
   labelX: {
     id: 'wallet.settings.utxos.labelX',
     defaultMessage: '!!!amount',
@@ -49,12 +62,21 @@ export const messages = defineMessages({
     defaultMessage: '!!!Nº UTXO',
     description: 'Label Y for the "Wallet Utxos" screen.',
   },
+  pendingTransactions: {
+    id: 'wallet.settings.utxos.pendingTransactions',
+    defaultMessage:
+      '!!!<b>Pending transactions</b> may affect the accuracy of data presented here. <br /> You have <b>{pendingTxnsCount}</b> pending transaction{txnsPlural}.',
+    description:
+      'Number of pending transactions for the "Wallet Utxos" screen.',
+  },
 });
 
 type Props = {
   walletAmount: BigNumber,
   walletUtxosAmount: number,
   chartData: Array<any>,
+  onExternalLinkClick: Function,
+  pendingTxnsCount: number,
 };
 
 type State = {
@@ -74,9 +96,34 @@ export default class WalletUtxo extends Component<Props, State> {
     return !this.state.isHoveringChart;
   }
 
+  renderPendingTxns = (pendingTxnsCount: number) => {
+    const txnsPlural = (!pendingTxnsCount || pendingTxnsCount > 1) && 's';
+    return (
+      <div className={styles.pendingTxnsWrapper}>
+        <div>
+          <p>
+            <FormattedHTMLMessage
+              {...messages.pendingTransactions}
+              values={{
+                pendingTxnsCount,
+                txnsPlural,
+              }}
+            />
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   render() {
     const { intl } = this.context;
-    const { walletAmount, walletUtxosAmount, chartData } = this.props;
+    const {
+      walletAmount,
+      walletUtxosAmount,
+      chartData,
+      onExternalLinkClick,
+      pendingTxnsCount,
+    } = this.props;
     const formattedWalletAmount = walletAmount.toFormat(DECIMAL_PLACES_IN_ADA);
     const isEmpty = walletUtxosAmount === 0;
     const componentStyles = classnames([
@@ -84,9 +131,19 @@ export default class WalletUtxo extends Component<Props, State> {
       isEmpty ? styles.isEmpty : null,
     ]);
 
+    const findOutMoreLinkUrl = intl.formatMessage(messages.findOutMoreLinkUrl);
+    const findOutMoreLink = (
+      <Link
+        className={styles.externalLink}
+        onClick={event => onExternalLinkClick(findOutMoreLinkUrl, event)}
+        label={intl.formatMessage(messages.findOutMoreLink)}
+        skin={LinkSkin}
+      />
+    );
+
     return (
       <div className={componentStyles}>
-        <BorderedBox>
+        <BorderedBox className={styles.borderedBox}>
           <div
             className={styles.container}
             onMouseEnter={() => this.setState({ isHoveringChart: true })}
@@ -99,66 +156,73 @@ export default class WalletUtxo extends Component<Props, State> {
                 <p>
                   <FormattedHTMLMessage
                     {...messages.description}
-                    values={{ formattedWalletAmount, walletUtxosAmount }}
-                  />
+                    values={{
+                      formattedWalletAmount,
+                      walletUtxosAmount,
+                    }}
+                  />{' '}
+                  {findOutMoreLink}
                 </p>
 
-                <ResponsiveContainer
-                  height={280}
-                  className={styles.responsiveContainer}
-                >
-                  <BarChart data={chartData} barGap={30} barCategoryGap={4}>
-                    <CartesianGrid
-                      className={styles.cartesianGrid}
-                      horizontal={false}
-                      vertical={false}
-                      y={-10}
-                      height={255}
-                      fill="transparent"
-                    />
-                    <XAxis
-                      dataKey="walletAmount"
-                      interval={0}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={(props: TickProps) => (
-                        <Tick {...props} textAnchor="start" vertical />
-                      )}
-                      className={styles.xAxis}
-                      y={0}
-                    >
-                      <Label
-                        value={intl.formatMessage(messages.labelX)}
-                        offset={20}
-                        position="insideBottomRight"
-                        className={styles.xAxisLabel}
+                <div className={styles.responsiveContainerWrapper}>
+                  <ResponsiveContainer
+                    height={280}
+                    className={styles.responsiveContainer}
+                  >
+                    <BarChart data={chartData} barSize={23}>
+                      <CartesianGrid
+                        className={styles.cartesianGrid}
+                        horizontal={false}
+                        vertical={false}
+                        y={-10}
+                        height={255}
+                        fill="transparent"
                       />
-                    </XAxis>
-                    <YAxis
-                      dataKey="walletUtxosAmount"
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                      domain={[0, 'dataMax']}
-                      tick={(props: TickProps) => (
-                        <Tick {...props} textAnchor="end" />
-                      )}
-                    >
-                      <Label
-                        value={intl.formatMessage(messages.labelY)}
-                        offset={0}
-                        position="insideTopLeft"
-                        className={styles.yAxisLabel}
+                      <XAxis
+                        dataKey="walletAmount"
+                        interval={0}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={(props: TickProps) => (
+                          <Tick {...props} textAnchor="start" vertical />
+                        )}
+                        className={styles.xAxis}
+                        y={0}
+                      >
+                        <Label
+                          value={intl.formatMessage(messages.labelX)}
+                          offset={20}
+                          position="insideBottomRight"
+                          className={styles.xAxisLabel}
+                        />
+                      </XAxis>
+                      <YAxis
+                        dataKey="walletUtxosAmount"
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                        domain={[0, 'dataMax']}
+                        tick={(props: TickProps) => (
+                          <Tick {...props} textAnchor="end" />
+                        )}
+                      >
+                        <Label
+                          value={intl.formatMessage(messages.labelY)}
+                          offset={0}
+                          position="insideTopLeft"
+                          className={styles.yAxisLabel}
+                        />
+                      </YAxis>
+                      <Tooltip
+                        cursor={<Cursor offsetWidth={28} />}
+                        isAnimationActive={false}
+                        content={<CustomTooltip />}
                       />
-                    </YAxis>
-                    <Tooltip
-                      cursor={<Cursor />}
-                      isAnimationActive={false}
-                      content={<CustomTooltip />}
-                    />
-                    <Bar dataKey="walletUtxosAmount" className={styles.bar} />
-                  </BarChart>
-                </ResponsiveContainer>
+                      <Bar dataKey="walletUtxosAmount" className={styles.bar} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                {this.renderPendingTxns(pendingTxnsCount)}
               </Fragment>
             ) : (
               <p>{intl.formatMessage(messages.emptyWallet)}</p>

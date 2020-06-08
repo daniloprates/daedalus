@@ -1,28 +1,41 @@
 @import '../stakingConfig';
+@import '../../../themes/mixins/link';
 
 .component {
-  background-color: var(--theme-staking-background-color);
-  height: 100%;
   padding: 20px;
-}
 
-.mainContent {
-  @extend %contentBorderAndBackground;
-  padding: 20px;
-  text-align: center;
-}
+  .mainContent {
+    @extend %contentBorderAndBackground;
+    padding: 20px;
+    text-align: center;
+  }
 
-.heading {
-  @extend %accentText;
-  font-size: 19px;
-  margin-bottom: 14px;
-}
+  .heading {
+    @extend %accentText;
+    font-size: 19px;
+    margin-bottom: 14px;
+  }
 
-.description {
-  @extend %regularText;
-  margin-bottom: 24px;
-}
+  .description {
+    @extend %regularText;
+    color: var(--theme-staking-font-color-light);
+    margin-bottom: 24px;
+  }
 
-.timeLeftDesc {
-  @extend %accentText;
+  .timeLeftDesc {
+    @extend %accentText;
+    margin-bottom: 10px;
+  }
+
+  .learnMoreButton {
+    margin-top: 30px;
+
+    .externalLinkIcon {
+      color: var(--theme-staking-learn-more-icon-color);
+      &:before {
+        background-color: var(--theme-staking-learn-more-icon-color);
+        vertical-align: sub;
+      }
+    }
+  }
 }

@@ -3,6 +3,8 @@ import React, { Component } from 'react';
 import { observer } from 'mobx-react';
 import classnames from 'classnames';
 import { defineMessages, intlShape, FormattedMessage } from 'react-intl';
+import { Link } from 'react-polymorph/lib/components/Link';
+import { LinkSkin } from 'react-polymorph/lib/skins/simple/LinkSkin';
 import Dialog from '../../widgets/Dialog';
 import DialogCloseButton from '../../widgets/DialogCloseButton';
 import { getNetworkExplorerUrl } from '../../../utils/network';
@@ -108,6 +110,7 @@ const messages = defineMessages({
 type Props = {
   inProgress: boolean,
   network: string,
+  rawNetwork: string,
   onClose: Function,
   onOpenExternalLink: Function,
   onPrint: Function,
@@ -122,9 +125,11 @@ export default class InstructionsDialog extends Component<Props> {
 
   static defaultProps = {
     network: DEVELOPMENT,
+    rawNetwork: DEVELOPMENT,
   };
 
-  componentWillReceiveProps(newProps: Props) {
+  // eslint-disable-next-line
+  UNSAFE_componentWillReceiveProps(newProps: Props) {
     if (!this.props.error && newProps.error) {
       handleFormErrors('.InstructionsDialog_error', { focusElement: true });
     }
@@ -138,6 +143,7 @@ export default class InstructionsDialog extends Component<Props> {
       inProgress,
       onOpenExternalLink,
       network,
+      rawNetwork,
       error,
     } = this.props;
     const dialogClasses = classnames([styles.component, 'instructionsDialog']);
@@ -156,20 +162,16 @@ export default class InstructionsDialog extends Component<Props> {
       },
     ];
 
-    const openNetworkExplorer = onOpenExternalLink.bind(
-      null,
-      getNetworkExplorerUrl(network)
-    );
+    const openNetworkExplorer = () =>
+      onOpenExternalLink(getNetworkExplorerUrl(network, rawNetwork));
 
     const cardanoExplorerLink = (
-      <span
+      <Link
         className={styles.link}
         onClick={openNetworkExplorer}
-        role="link"
-        aria-hidden
-      >
-        {intl.formatMessage(messages.cardanoExplorer)}
-      </span>
+        label={intl.formatMessage(messages.cardanoExplorer)}
+        skin={LinkSkin}
+      />
     );
 
     return (

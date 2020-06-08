@@ -4,11 +4,15 @@ import SVGInline from 'react-svg-inline';
 import { observer } from 'mobx-react';
 import { defineMessages, intlShape } from 'react-intl';
 import classNames from 'classnames';
+import { Scrollbars } from 'react-custom-scrollbars';
 import SidebarSubMenu from '../SidebarMenu';
 import styles from './SidebarWalletsMenu.scss';
 import addWalletIcon from '../../../assets/images/sidebar/add-wallet-ic.inline.svg';
 import SidebarWalletMenuItem from './SidebarWalletMenuItem';
-import type { SidebarWalletType } from '../../../types/sidebarTypes';
+import type {
+  SidebarHardwareWalletType,
+  SidebarWalletType,
+} from '../../../types/sidebarTypes';
 
 const messages = defineMessages({
   addAdaWallet: {
@@ -19,12 +23,14 @@ const messages = defineMessages({
 });
 
 type Props = {
-  wallets: Array<SidebarWalletType>,
+  wallets: Array<SidebarWalletType | SidebarHardwareWalletType>,
   isActiveWallet: Function,
   onAddWallet: Function,
   onWalletItemClick: Function,
   visible: boolean,
   isAddWalletButtonActive: boolean,
+  isIncentivizedTestnet: boolean,
+  isHardwareWalletsMenu?: boolean,
 };
 
 @observer
@@ -32,6 +38,10 @@ export default class SidebarWalletsMenu extends Component<Props> {
   static contextTypes = {
     intl: intlShape.isRequired,
   };
+
+  renderThumb = (props: any) => (
+    <div {...props} className={styles.scrollbarThumb} />
+  );
 
   render() {
     const { intl } = this.context;
@@ -41,6 +51,8 @@ export default class SidebarWalletsMenu extends Component<Props> {
       isActiveWallet,
       onWalletItemClick,
       isAddWalletButtonActive,
+      isIncentivizedTestnet,
+      isHardwareWalletsMenu,
     } = this.props;
 
     const addWalletButtonStyles = classNames([
@@ -51,19 +63,29 @@ export default class SidebarWalletsMenu extends Component<Props> {
     return (
       <SidebarSubMenu visible={this.props.visible}>
         <div className={styles.wallets}>
-          {wallets.map(wallet => (
-            <SidebarWalletMenuItem
-              title={wallet.title}
-              info={wallet.info}
-              active={isActiveWallet(wallet.id)}
-              onClick={() => onWalletItemClick(wallet.id)}
-              key={wallet.id}
-              className={`Wallet_${wallet.id}`}
-              isRestoreActive={wallet.isRestoreActive}
-              restoreProgress={wallet.restoreProgress}
-              isLegacy={wallet.isLegacy}
-            />
-          ))}
+          <Scrollbars
+            renderThumbHorizontal={() => <div className={styles.hideThumb} />}
+            renderThumbVertical={this.renderThumb}
+            hideTracksWhenNotNeeded
+          >
+            {wallets.map(wallet => (
+              <SidebarWalletMenuItem
+                title={wallet.title}
+                info={wallet.info}
+                active={isActiveWallet(wallet.id)}
+                onClick={() => onWalletItemClick(wallet.id)}
+                key={wallet.id}
+                className={`Wallet_${wallet.id}`}
+                isRestoreActive={wallet.isRestoreActive}
+                isIncentivizedTestnet={isIncentivizedTestnet}
+                restoreProgress={wallet.restoreProgress}
+                isNotResponding={wallet.isNotResponding}
+                isLegacy={wallet.isLegacy}
+                isHardwareWalletsMenu={isHardwareWalletsMenu}
+                hasNotification={wallet.hasNotification}
+              />
+            ))}
+          </Scrollbars>
         </div>
         <button className={addWalletButtonStyles} onClick={onAddWallet}>
           <SVGInline svg={addWalletIcon} className={styles.icon} />

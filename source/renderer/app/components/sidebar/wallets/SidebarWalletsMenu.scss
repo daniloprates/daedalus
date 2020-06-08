@@ -1,10 +1,30 @@
 @import '../../../themes/mixins/buttons';
 @import '../sidebarConfig';
 
+.hideThumb {
+  display: none !important;
+}
+
+.scrollbarThumb {
+  background-color: var(--theme-sidebar-wallets-scrollbar-background-color);
+  border-radius: 2px;
+  width: 4px !important;
+
+  &:active {
+    background-color: var(
+      --theme-sidebar-wallets-scrollbar-background-color-active
+    );
+  }
+
+  &:hover {
+    background-color: var(
+      --theme-sidebar-wallets-scrollbar-background-color-hover
+    );
+  }
+}
+
 .wallets {
   height: calc(100% - #{$sidebar-button-height});
-  overflow-x: hidden;
-  overflow-y: overlay;
 }
 
 .addWalletButton {
@@ -25,9 +45,9 @@
   }
 
   .icon {
-    width: 25px;
     line-height: 12px;
     margin: 0 20px;
+    width: 25px;
     & > svg {
       width: 25px;
       path {
@@ -42,9 +62,9 @@
   }
 
   &.active {
-    cursor: default;
     background-color: var(
       --theme-sidebar-menu-add-button-background-color-active
     );
+    cursor: default;
   }
 }

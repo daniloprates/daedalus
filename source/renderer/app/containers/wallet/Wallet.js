@@ -1,16 +1,15 @@
 // @flow
 import React, { Component } from 'react';
 import { observer, inject } from 'mobx-react';
-import { get } from 'lodash';
 import MainLayout from '../MainLayout';
 import WalletWithNavigation from '../../components/wallet/layouts/WalletWithNavigation';
 import LoadingSpinner from '../../components/widgets/LoadingSpinner';
-import AdaRedemptionSuccessOverlay from '../../components/wallet/ada-redemption/AdaRedemptionSuccessOverlay';
 import RestoreNotification from '../../components/notifications/RestoreNotification';
+import ChangeSpendingPasswordDialog from '../../components/wallet/settings/ChangeSpendingPasswordDialog';
 import { buildRoute } from '../../utils/routing';
 import { ROUTES } from '../../routes-config';
 import type { InjectedContainerProps } from '../../types/injectedPropsType';
-import { WalletSyncStateTags } from '../../domains/Wallet';
+import type { NavDropdownProps } from '../../components/navigation/Navigation';
 
 type Props = InjectedContainerProps;
 
@@ -19,9 +18,20 @@ type Props = InjectedContainerProps;
 export default class Wallet extends Component<Props> {
   static defaultProps = { actions: null, stores: null };
 
-  isActiveScreen = (page: string) => {
+  isActiveScreen = (page: string, item: NavDropdownProps) => {
     const { app, wallets } = this.props.stores;
     if (!wallets.active) return false;
+    const { options } = item;
+    if (options && options.length) {
+      options.forEach(option => {
+        if (
+          app.currentRoute &&
+          app.currentRoute.includes(option.value.toString())
+        ) {
+          page = option.value.toString();
+        }
+      });
+    }
     const screenRoute = buildRoute(ROUTES.WALLETS.PAGE, {
       id: wallets.active.id,
       page,
@@ -40,56 +50,58 @@ export default class Wallet extends Component<Props> {
 
   render() {
     const { actions, stores } = this.props;
-    const { wallets, adaRedemption, profile, app } = stores;
-    const { showAdaRedemptionSuccessMessage, amountRedeemed } = adaRedemption;
-    const { currentLocale } = profile;
-
-    if (!wallets.active)
+    const { app, wallets, walletSettings, uiDialogs } = stores;
+    const { isOpen: isDialogOpen } = uiDialogs;
+    const { restartNode } = actions.networkStatus;
+    const { active: activeWallet } = wallets;
+    if (!activeWallet) {
       return (
         <MainLayout>
           <LoadingSpinner />
         </MainLayout>
       );
-
-    const isRestoreActive =
-      get(wallets.active, 'syncState.tag') === WalletSyncStateTags.RESTORING;
-    const restoreProgress = get(
-      wallets.active,
-      'syncState.data.percentage.quantity',
-      0
+    }
+    const {
+      hasNotification,
+    } = walletSettings.getWalletsRecoveryPhraseVerificationData(
+      activeWallet.id
     );
-    const restoreETA = get(
-      wallets.active,
-      'syncState.data.estimatedCompletionTime.quantity',
-      0
-    );
+    const {
+      isRestoring,
+      isLegacy,
+      isNotResponding,
+      hasPassword,
+    } = activeWallet;
 
     return (
       <MainLayout>
-        {isRestoreActive ? (
+        {isRestoring ? (
           <RestoreNotification
-            currentLocale={currentLocale}
-            restoreProgress={restoreProgress}
-            restoreETA={restoreETA}
+            restoreProgress={activeWallet.restorationProgress}
           />
         ) : null}
 
         <WalletWithNavigation
-          isActiveScreen={this.isActiveScreen}
-          onWalletNavItemClick={this.handleWalletNavItemClick}
           activeItem={app.currentPage}
+          hasNotification={hasNotification}
+          hasPassword={hasPassword}
+          isActiveScreen={this.isActiveScreen}
+          isLegacy={isLegacy}
+          isNotResponding={isNotResponding}
+          isSetWalletPasswordDialogOpen={isDialogOpen(
+            ChangeSpendingPasswordDialog
+          )}
+          onOpenExternalLink={(url: string) => stores.app.openExternalLink(url)}
+          onRestartNode={() => restartNode.trigger()}
+          onSetWalletPassword={() => {
+            actions.dialogs.open.trigger({
+              dialog: ChangeSpendingPasswordDialog,
+            });
+          }}
+          onWalletNavItemClick={this.handleWalletNavItemClick}
         >
           {this.props.children}
         </WalletWithNavigation>
-
-        {showAdaRedemptionSuccessMessage ? (
-          <AdaRedemptionSuccessOverlay
-            amount={amountRedeemed}
-            onClose={
-              actions.adaRedemption.closeAdaRedemptionSuccessOverlay.trigger
-            }
-          />
-        ) : null}
       </MainLayout>
     );
   }

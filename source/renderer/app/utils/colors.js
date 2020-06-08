@@ -1,43 +1,71 @@
 // @flow
-import { rangeMap } from './rangeMap';
+import chroma from 'chroma-js';
+import isNil from 'lodash/isNil';
 
 // Ranking 001: hsla(142, 76%, 45%, 1)
 // Ranking 100: hsla(15, 97%, 58%, 1)
 
-const RANKING_COLORS_RANGE = {
-  hue: [142, 15],
-  saturation: [76, 97],
-  lighness: [45, 58],
+type RangeOptions = {
+  colors?: Array<any>,
+  numberOfItems?: number,
+  darken?: number,
+  brighten?: number,
+  alpha?: number,
+  reverse?: boolean,
 };
 
-const getHSLParam = (ranking: number, param: string, offset?: number) =>
-  rangeMap(
-    ranking,
-    1,
-    100,
-    RANKING_COLORS_RANGE[param][0],
-    RANKING_COLORS_RANGE[param][1]
-  ) + offset;
-
-type Options = {
-  hueOffset?: number,
-  saturationOffset?: number,
-  lighnessOffset?: number,
+const defaultRangeOptions = {
+  colors: ['#1cca5b', '#fc602c'],
+  numberOfItems: 99,
+  darken: 0,
+  brighten: 0,
+  alpha: 1,
+  reverse: false,
 };
 
-const defaultOptions = {
-  hueOffset: 0,
-  saturationOffset: 0,
-  lighnessOffset: 0,
-};
+export const getColorFromRange = (
+  index: ?number,
+  optionsOrNumberOfItems?: RangeOptions | number
+) => {
+  let options = {};
+  let { numberOfItems } = defaultRangeOptions;
 
-export const getHSLColor = (ranking: number, options?: Options = {}) => {
-  const { hueOffset, saturationOffset, lighnessOffset } = {
-    ...defaultOptions,
+  if (typeof optionsOrNumberOfItems === 'object') {
+    options = optionsOrNumberOfItems;
+    numberOfItems = options.numberOfItems || numberOfItems;
+  } else if (typeof optionsOrNumberOfItems === 'number') {
+    numberOfItems = optionsOrNumberOfItems;
+  }
+
+  const { colors, darken, brighten, alpha, reverse } = {
+    ...defaultRangeOptions,
     ...options,
   };
-  const hue = getHSLParam(ranking, 'hue', hueOffset);
-  const saturation = getHSLParam(ranking, 'saturation', saturationOffset);
-  const lighness = getHSLParam(ranking, 'lighness', lighnessOffset);
-  return `hsl(${hue}, ${saturation}%, ${lighness}%)`;
+  const domain = [0, numberOfItems];
+  if (reverse) domain.reverse();
+  const scale = chroma.scale(colors).domain(domain);
+
+  if (isNil(index)) {
+    return 'transparent';
+  }
+
+  return scale(index)
+    .darken(darken)
+    .brighten(brighten)
+    .alpha(alpha)
+    .hex();
+};
+
+export const getSaturationColor = (saturation: number): string => {
+  let color;
+  if (saturation >= 100) {
+    color = 'red';
+  } else if (saturation >= 90) {
+    color = 'orange';
+  } else if (saturation >= 80) {
+    color = 'yellow';
+  } else {
+    color = 'green';
+  }
+  return color;
 };

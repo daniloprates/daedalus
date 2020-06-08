@@ -3,9 +3,13 @@ import os from 'os';
 import path from 'path';
 import { app, BrowserWindow, shell } from 'electron';
 import { client } from 'electron-connect';
-import { Logger } from './utils/logging';
-import { setupLogging, logSystemInfo } from './utils/setupLogging';
-import { getNumberOfEpochsConsolidated } from './utils/getNumberOfEpochsConsolidated';
+import { logger } from './utils/logging';
+import {
+  setupLogging,
+  logSystemInfo,
+  logStateSnapshot,
+  generateWalletMigrationReport,
+} from './utils/setupLogging';
 import { handleDiskSpace } from './utils/handleDiskSpace';
 import { createMainWindow } from './windows/main';
 import { installChromeExtensions } from './utils/installChromeExtensions';
@@ -13,12 +17,10 @@ import { environment } from './environment';
 import mainErrorHandler from './utils/mainErrorHandler';
 import {
   launcherConfig,
-  frontendOnlyMode,
   pubLogsFolderPath,
-  APP_NAME,
   stateDirectoryPath,
 } from './config';
-import { setupCardano } from './cardano/setup';
+import { setupCardanoNode } from './cardano/setup';
 import { CardanoNode } from './cardano/CardanoNode';
 import { safeExitWithCode } from './utils/safeExitWithCode';
 import { buildAppMenus } from './utils/buildAppMenus';
@@ -26,11 +28,14 @@ import { getLocale } from './utils/getLocale';
 import { detectSystemLocale } from './utils/detectSystemLocale';
 import { ensureXDGDataIsSet } from './cardano/config';
 import { rebuildApplicationMenu } from './ipc/rebuild-application-menu';
-import { detectSystemLocaleChannel } from './ipc/detect-system-locale';
 import { getStateDirectoryPathChannel } from './ipc/getStateDirectoryPathChannel';
+import { getDesktopDirectoryPathChannel } from './ipc/getDesktopDirectoryPathChannel';
+import { getSystemLocaleChannel } from './ipc/getSystemLocaleChannel';
 import { CardanoNodeStates } from '../common/types/cardano-node.types';
 import type { CheckDiskSpaceResponse } from '../common/types/no-disk-space.types';
 import { logUsedVersion } from './utils/logUsedVersion';
+import { setStateSnapshotLogChannel } from './ipc/set-log-state-snapshot';
+import { generateWalletMigrationReportChannel } from './ipc/generateWalletMigrationReportChannel';
 
 /* eslint-disable consistent-return */
 
@@ -41,30 +46,39 @@ let cardanoNode: ?CardanoNode;
 const {
   isDev,
   isWatchMode,
-  isInSafeMode,
+  isBlankScreenFixActive,
   network,
-  current,
   os: osName,
   version: daedalusVersion,
-  buildNumber: cardanoVersion,
+  nodeVersion: cardanoNodeVersion,
+  apiVersion: cardanoWalletVersion,
 } = environment;
+
+if (isBlankScreenFixActive) {
+  // Run "location.assign('chrome://gpu')" in JavaScript console to see if the flag is active
+  app.disableHardwareAcceleration();
+}
 
 const safeExit = async () => {
   if (!cardanoNode || cardanoNode.state === CardanoNodeStates.STOPPED) {
-    Logger.info('Daedalus:safeExit: exiting Daedalus with code 0', { code: 0 });
+    logger.info('Daedalus:safeExit: exiting Daedalus with code 0', { code: 0 });
     return safeExitWithCode(0);
   }
-  if (cardanoNode.state === CardanoNodeStates.STOPPING) return;
+  if (cardanoNode.state === CardanoNodeStates.STOPPING) {
+    logger.info('Daedalus:safeExit: waiting for cardano-node to stop...');
+    cardanoNode.exitOnStop();
+    return;
+  }
   try {
     const pid = cardanoNode.pid || 'null';
-    Logger.info(`Daedalus:safeExit: stopping cardano-node with PID: ${pid}`, {
+    logger.info(`Daedalus:safeExit: stopping cardano-node with PID: ${pid}`, {
       pid,
     });
     await cardanoNode.stop();
-    Logger.info('Daedalus:safeExit: exiting Daedalus with code 0', { code: 0 });
+    logger.info('Daedalus:safeExit: exiting Daedalus with code 0', { code: 0 });
     safeExitWithCode(0);
   } catch (error) {
-    Logger.error('Daedalus:safeExit: cardano-node did not exit correctly', {
+    logger.error('Daedalus:safeExit: cardano-node did not exit correctly', {
       error,
     });
     safeExitWithCode(0);
@@ -75,7 +89,7 @@ const onAppReady = async () => {
   setupLogging();
   logUsedVersion(
     environment.version,
-    path.join(pubLogsFolderPath, `${APP_NAME}-versions.json`)
+    path.join(pubLogsFolderPath, 'Daedalus-versions.json')
   );
 
   const cpu = os.cpus();
@@ -86,11 +100,11 @@ const onAppReady = async () => {
   const systemLocale = detectSystemLocale();
 
   const systemInfo = logSystemInfo({
-    cardanoVersion,
+    cardanoNodeVersion,
+    cardanoWalletVersion,
     cpu,
-    current,
     daedalusVersion,
-    isInSafeMode,
+    isBlankScreenFixActive,
     network,
     osName,
     platformVersion,
@@ -98,9 +112,16 @@ const onAppReady = async () => {
     startTime,
   });
 
-  Logger.info(`Daedalus is starting at ${startTime}`, { startTime });
+  logger.info(`Daedalus is starting at ${startTime}`, { startTime });
 
-  Logger.info('Updating System-info.json file', { ...systemInfo.data });
+  logger.info('Updating System-info.json file', { ...systemInfo.data });
+
+  // We need DAEDALUS_INSTALL_DIRECTORY in PATH
+  // in order for the cardano-launcher to find wallet and node bins
+  process.env.PATH = [
+    process.env.PATH,
+    process.env.DAEDALUS_INSTALL_DIRECTORY,
+  ].join(path.delimiter);
 
   ensureXDGDataIsSet();
   await installChromeExtensions(isDev);
@@ -113,10 +134,6 @@ const onAppReady = async () => {
   const onCheckDiskSpace = ({
     isNotEnoughDiskSpace,
   }: CheckDiskSpaceResponse) => {
-    // Daedalus is not managing cardano-node in `frontendOnlyMode`
-    // so we don't have a way to stop it in case there is not enough disk space
-    if (frontendOnlyMode) return;
-
     if (cardanoNode) {
       if (isNotEnoughDiskSpace) {
         if (
@@ -145,36 +162,48 @@ const onAppReady = async () => {
   mainErrorHandler(onMainError);
   await handleCheckDiskSpace();
 
-  cardanoNode = setupCardano(launcherConfig, mainWindow);
+  cardanoNode = setupCardanoNode(launcherConfig, mainWindow);
 
   if (isWatchMode) {
     // Connect to electron-connect server which restarts / reloads windows on file changes
     client.create(mainWindow);
   }
 
-  detectSystemLocaleChannel.onRequest(() => Promise.resolve(systemLocale));
+  setStateSnapshotLogChannel.onReceive(data => {
+    return Promise.resolve(logStateSnapshot(data));
+  });
 
-  getNumberOfEpochsConsolidated();
+  generateWalletMigrationReportChannel.onReceive(data => {
+    return Promise.resolve(generateWalletMigrationReport(data));
+  });
 
   getStateDirectoryPathChannel.onRequest(() =>
     Promise.resolve(stateDirectoryPath)
   );
 
+  getDesktopDirectoryPathChannel.onRequest(() =>
+    Promise.resolve(app.getPath('desktop'))
+  );
+
+  getSystemLocaleChannel.onRequest(() => Promise.resolve(systemLocale));
+
   mainWindow.on('close', async event => {
-    Logger.info(
+    logger.info(
       'mainWindow received <close> event. Safe exiting Daedalus now.'
     );
     event.preventDefault();
     await safeExit();
   });
 
-  buildAppMenus(mainWindow, cardanoNode, locale);
+  buildAppMenus(mainWindow, cardanoNode, locale, { isUpdateAvailable: false });
 
   await rebuildApplicationMenu.onReceive(
-    () =>
+    data =>
       new Promise(resolve => {
         locale = getLocale(network);
-        buildAppMenus(mainWindow, cardanoNode, locale);
+        buildAppMenus(mainWindow, cardanoNode, locale, {
+          isUpdateAvailable: data.isUpdateAvailable,
+        });
         mainWindow.updateTitle(locale);
         resolve();
       })
@@ -186,7 +215,7 @@ const onAppReady = async () => {
     contents.on('new-window', (event, url) => {
       // Prevent creation of new BrowserWindows via links / window.open
       event.preventDefault();
-      Logger.info('Prevented creation of new browser window', { url });
+      logger.info('Prevented creation of new browser window', { url });
       // Open these links with the default browser
       shell.openExternal(url);
     });
@@ -194,7 +223,7 @@ const onAppReady = async () => {
 
   // Wait for controlled cardano-node shutdown before quitting the app
   app.on('before-quit', async event => {
-    Logger.info('app received <before-quit> event. Safe exiting Daedalus now.');
+    logger.info('app received <before-quit> event. Safe exiting Daedalus now.');
     event.preventDefault(); // prevent Daedalus from quitting immediately
     await safeExit();
   });

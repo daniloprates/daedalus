@@ -1,44 +1,41 @@
-{ lib, pkgs, nodejs-8_x, python, api, apiVersion, cluster, buildNum, nukeReferences, fetchzip, daedalus, stdenv, win64 ? false, wine, runCommand, fetchurl }:
+{ lib, yarn, nodejs, python, api, apiVersion, cluster, buildNum, nukeReferences, fetchzip, daedalus, stdenv, win64 ? false, wine64, runCommand, fetchurl, unzip, spacedName, iconPath, launcherConfig, pkgs }:
 let
-  nodejs = nodejs-8_x;
+  cluster' = launcherConfig.networkName;
   yarn2nix = import (fetchzip {
     url = "https://github.com/moretea/yarn2nix/archive/v1.0.0.tar.gz";
     sha256 = "02bzr9j83i1064r1r34cn74z7ccb84qb5iaivwdplaykyyydl1k8";
-  }) { inherit pkgs nodejs; };
-  # TODO: these hard-coded values will go away when wallet port
-  # selection happens at runtime.
-  walletPortMap = {
-    mainnet = 8090;
-    staging = 8092;
-    testnet = 8094;
+  }) {
+    inherit pkgs nodejs yarn;
   };
   dotGitExists = builtins.pathExists ./.git;
   isNix2 = 0 <= builtins.compareVersions builtins.nixVersion "1.12";
   canUseFetchGit = dotGitExists && isNix2;
   origPackage = builtins.fromJSON (builtins.readFile ./package.json);
-  nameTable = {
-    mainnet = "Daedalus";
-    staging = "Daedalus Staging";
-    testnet = "Daedalus Testnet";
-  };
-  newPackage = origPackage // {
-    productName = nameTable.${if cluster == null then "testnet" else cluster};
+  newPackage = (origPackage // {
+    productName = spacedName;
+  }) // lib.optionalAttrs (win64 == false) {
     main = "main/index.js";
   };
   newPackagePath = builtins.toFile "package.json" (builtins.toJSON newPackage);
-  windowsElectronVersion = "3.0.14";
+  windowsElectronVersion = "8.2.2";
   windowsElectron = fetchurl {
     url = "https://github.com/electron/electron/releases/download/v${windowsElectronVersion}/electron-v${windowsElectronVersion}-win32-x64.zip";
-    sha256 = "0cqwjmv1ymwa309v025szs6681f891s6ks653jd5mh55hp1vpn0b";
+    sha256 = "0v9y8qih494k4a5q9s3jgvkdi0nbp60hr0v0w5cxlki79z8gk5ax";
   };
   checksums = fetchurl {
     url = "https://github.com/electron/electron/releases/download/v${windowsElectronVersion}/SHASUMS256.txt";
-    sha256 = "103m5kxgb64clx68qqfvxdz2pah249lk344mjxqj94i83v9bxd2j";
+    sha256 = "1z9wcgqjjany2ny4k771835m190vyp8h5gjbh898mf81mk7h3805";
   };
   electron-cache = runCommand "electron-cache" {} ''
     mkdir $out
-    ln -s ${windowsElectron} $out/electron-v3.0.14-win32-x64.zip
-    ln -s ${checksums} $out/SHASUMS256.txt-3.0.14
+    # old style
+    ln -s ${windowsElectron} $out/electron-v${windowsElectronVersion}-win32-x64.zip
+    ln -s ${checksums} $out/SHASUMS256.txt-${windowsElectronVersion}
+    # new style
+    mkdir $out/httpsgithub.comelectronelectronreleasesdownloadv${windowsElectronVersion}SHASUMS256.txt
+    mkdir $out/httpsgithub.comelectronelectronreleasesdownloadv${windowsElectronVersion}electron-v${windowsElectronVersion}-win32-x64.zip
+    ln -s ${windowsElectron} $out/httpsgithub.comelectronelectronreleasesdownloadv${windowsElectronVersion}electron-v${windowsElectronVersion}-win32-x64.zip/electron-v${windowsElectronVersion}-win32-x64.zip
+    ln -s ${checksums} $out/httpsgithub.comelectronelectronreleasesdownloadv${windowsElectronVersion}SHASUMS256.txt/SHASUMS256.txt
   '';
   filter = name: type: let
     baseName = baseNameOf (toString name);
@@ -61,11 +58,10 @@ yarn2nix.mkYarnPackage {
   API = api;
   API_VERSION = apiVersion;
   CI = "nix";
-  NETWORK = cluster;
-  WALLET_PORT = walletPortMap.${cluster};
+  NETWORK = cluster';
   BUILD_NUMBER = "${toString buildNum}";
   NODE_ENV = "production";
-  extraBuildInputs = if win64 then [ wine nukeReferences ] else [ nukeReferences ];
+  extraBuildInputs = if win64 then [ unzip wine64 nukeReferences ] else [ nukeReferences ];
   installPhase = let
     nukeAllRefs = ''
       # the webpack utils embed the original source paths into map files, so backtraces from the 1 massive index.js can be converted back to multiple files
@@ -76,19 +72,27 @@ yarn2nix.mkYarnPackage {
       done
     '';
   in if win64 then ''
-    cp ${daedalus.cfg}/etc/launcher-config.yaml ./launcher-config.yaml
+    # old style
     export ELECTRON_CACHE=${electron-cache}
-    mkdir home
+    # new style
+    mkdir -pv home/.cache/
     export HOME=$(realpath home)
-    yarn --offline package --win64 --icon installers/icons/${cluster}/128x128
-    ls -ltrh release/win32-x64/Daedalus-win32-x64/
-    cp -r release/win32-x64/Daedalus-win32-x64 $out
+    ln -sv ${electron-cache} $HOME/.cache/electron
+
+    cp ${newPackagePath} package.json
+    mkdir -p installers/icons/${cluster}/${cluster}
+    cp ${iconPath.base}/* installers/icons/${cluster}/${cluster}/
+    yarn --offline package --win64 --icon installers/icons/${cluster}/${cluster}
+    ls -ltrh release/win32-x64/Daedalus*-win32-x64/
+    cp -r release/win32-x64/Daedalus*-win32-x64 $out
     pushd $out/resources/app/dist
     ${nukeAllRefs}
     popd
     rm -rf $out/resources/app/{installers,launcher-config.yaml,gulpfile.js,home}
+
+    mkdir -pv $out/resources/app/node_modules
+    cp -rv $node_modules/js-chain-libs-node $out/resources/app/node_modules/
   '' else ''
-    cp -v ${daedalus.cfg}/etc/launcher-config.yaml ./launcher-config.yaml
     yarn --offline run build
     mkdir -p $out/bin $out/share/daedalus
     cp -R dist/* $out/share/daedalus
@@ -98,6 +102,8 @@ yarn2nix.mkYarnPackage {
     popd
     mkdir -p $out/share/fonts
     ln -sv $out/share/daedalus/renderer/assets $out/share/fonts/daedalus
+    mkdir -pv $out/share/daedalus/node_modules
+    cp -rv $node_modules/js-chain-libs-node $out/share/daedalus/node_modules/
   '';
   allowedReferences = [ "out" ];
   yarnPreBuild = ''
@@ -115,7 +121,7 @@ yarn2nix.mkYarnPackage {
     };
     flow-bin = {
       postInstall = ''
-      flow_ver=$(${pkgs.jq}/bin/jq .devDependencies.'"flow-bin"' ${newPackagePath} | sed 's/"//g')
+        flow_ver=${origPackage.devDependencies."flow-bin"}
         patchelf --set-interpreter ${stdenv.cc.libc}/lib/ld-linux-x86-64.so.2 flow-linux64-v$flow_ver/flow
       '';
     };

@@ -1,10 +1,19 @@
 @import '../stakingConfig';
+@import '../../../themes/mixins/link';
 
 .component {
-  background-color: var(--theme-staking-background-color);
-  height: 100%;
-  margin: 20px;
+  padding: 20px;
   text-align: center;
+
+  .learnMoreButton {
+    .externalLinkIcon {
+      color: var(--theme-staking-info-learn-more-icon-color);
+      &:before {
+        background-color: var(--theme-staking-info-learn-more-icon-color);
+        vertical-align: sub;
+      }
+    }
+  }
 }
 
 .mainContent {
@@ -20,6 +29,7 @@
 
 .description {
   @extend %regularText;
+  color: var(--theme-staking-font-color-light);
   margin-bottom: 24px;
 }
 
@@ -31,7 +41,7 @@
 }
 
 .progressBarContainer {
-  background-color: var(--theme-staking-background-color);
+  background-color: var(--theme-staking-progress-bar-background-color);
   border-radius: 5px;
   height: 100%;
   width: 100%;
@@ -41,21 +51,10 @@
   align-items: center;
   background: repeating-linear-gradient(
     -63deg,
-    var(
-      --theme-staking-decentralization-progress-stripe-dark-1-background-color
-    ),
-    var(
-        --theme-staking-decentralization-progress-stripe-dark-1-background-color
-      )
-      10px,
-    var(
-        --theme-staking-decentralization-progress-stripe-dark-2-background-color
-      )
-      10px,
-    var(
-        --theme-staking-decentralization-progress-stripe-dark-2-background-color
-      )
-      20px
+    var(--theme-staking-progress-stripe-dark-1-background-color),
+    var(--theme-staking-progress-stripe-dark-1-background-color) 10px,
+    var(--theme-staking-progress-stripe-dark-2-background-color) 10px,
+    var(--theme-staking-progress-stripe-dark-2-background-color) 20px
   );
   border-radius: 5px;
   display: flex;
@@ -70,6 +69,6 @@
 
 .progressLabelWhite {
   @extend %regularText;
-  color: #fff;
+  color: var(--theme-staking-progress-label-light);
   transform: translateX(-8px);
 }

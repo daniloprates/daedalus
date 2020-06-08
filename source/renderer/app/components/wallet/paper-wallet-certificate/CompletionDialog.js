@@ -6,11 +6,13 @@ import classnames from 'classnames';
 import { defineMessages, intlShape } from 'react-intl';
 import CopyToClipboard from 'react-copy-to-clipboard';
 import SVGInline from 'react-svg-inline';
+import { Link } from 'react-polymorph/lib/components/Link';
+import { LinkSkin } from 'react-polymorph/lib/skins/simple/LinkSkin';
 import Dialog from '../../widgets/Dialog';
 import { getNetworkExplorerUrl } from '../../../utils/network';
 import styles from './CompletionDialog.scss';
 import iconCopy from '../../../assets/images/clipboard-ic.inline.svg';
-import InlineNotification from '../../widgets/InlineNotification';
+import InlineNotification from '../../notifications/InlineNotification';
 import { DEVELOPMENT } from '../../../../../common/types/environment.types';
 
 const messages = defineMessages({
@@ -73,6 +75,7 @@ type Props = {
   onOpenExternalLink: Function,
   copyAddressNotificationDuration: number,
   network: string,
+  rawNetwork: string,
 };
 
 type State = {
@@ -87,6 +90,7 @@ export default class CompletionDialog extends Component<Props, State> {
 
   static defaultProps = {
     network: DEVELOPMENT,
+    rawNetwork: DEVELOPMENT,
   };
 
   state = {
@@ -114,6 +118,7 @@ export default class CompletionDialog extends Component<Props, State> {
       walletCertificateAddress,
       onOpenExternalLink,
       network,
+      rawNetwork,
     } = this.props;
     const { showCopyNotification } = this.state;
     const dialogClasses = classnames([styles.component, 'completionDialog']);
@@ -127,7 +132,8 @@ export default class CompletionDialog extends Component<Props, State> {
       },
     ];
     const cardanoExplorerLink = `${getNetworkExplorerUrl(
-      network
+      network,
+      rawNetwork
     )}/address/${walletCertificateAddress}`;
 
     // Get QRCode color value from active theme's CSS variable
@@ -161,14 +167,12 @@ export default class CompletionDialog extends Component<Props, State> {
             </p>
 
             <div className={styles.infoBox}>
-              <span
+              <Link
                 className={styles.link}
                 onClick={() => onOpenExternalLink(cardanoExplorerLink)}
-                role="link"
-                aria-hidden
-              >
-                {cardanoExplorerLink}
-              </span>
+                label={cardanoExplorerLink}
+                skin={LinkSkin}
+              />
             </div>
           </div>
 

@@ -4,8 +4,8 @@ import { observer, inject } from 'mobx-react';
 import Sidebar from '../components/sidebar/Sidebar';
 import TopBarContainer from './TopBarContainer';
 import SidebarLayout from '../components/layout/SidebarLayout';
-import NodeUpdatePage from './notifications/NodeUpdatePage';
 import PaperWalletCreateCertificatePage from './wallet/PaperWalletCreateCertificatePage';
+import TransferFundsPage from './wallet/TransferFundsPage';
 import type { InjectedContainerProps } from '../types/injectedPropsType';
 import { ROUTES } from '../routes-config';
 
@@ -21,60 +21,79 @@ export default class MainLayout extends Component<InjectedContainerProps> {
 
   render() {
     const { actions, stores } = this.props;
-    const { nodeUpdate, sidebar, wallets } = stores;
-    const { isUpdateAvailable, isUpdatePostponed } = nodeUpdate;
-    const activeWallet = wallets.active;
+    const { sidebar, profile, app, wallets: walletsStore } = stores;
+    const activeWallet = walletsStore.active;
     const activeWalletId = activeWallet ? activeWallet.id : null;
+    const { currentTheme } = profile;
+    const {
+      environment: { network, isDev },
+    } = app;
 
-    const sidebarMenus =
+    const appWallets =
       sidebar.wallets.length > 0
         ? {
-            wallets: {
-              items: sidebar.wallets,
-              activeWalletId,
-              actions: {
-                onWalletItemClick: (walletId: string) => {
-                  actions.sidebar.walletSelected.trigger({ walletId });
-                },
+            items: sidebar.wallets,
+            activeWalletId,
+            actions: {
+              onWalletItemClick: (walletId: string) => {
+                actions.sidebar.walletSelected.trigger({ walletId });
               },
             },
           }
         : null;
 
+    const hardwareWallets =
+      sidebar.hardwareWallets.length > 0
+        ? {
+            items: sidebar.hardwareWallets,
+            activeWalletId,
+            actions: {
+              onHardwareWalletItemClick: (walletId: string) => {
+                actions.sidebar.hardwareWalletSelected.trigger({ walletId });
+              },
+            },
+          }
+        : null;
+
+    const sidebarMenus = {
+      wallets: appWallets,
+      hardwareWallets: isDev ? hardwareWallets : null,
+    };
+
     const sidebarComponent = (
       <Sidebar
         menus={sidebarMenus}
         isShowingSubMenus={sidebar.isShowingSubMenus}
+        isIncentivizedTestnet={global.isIncentivizedTestnet}
         categories={sidebar.CATEGORIES}
         activeSidebarCategory={sidebar.activeSidebarCategory}
-        onCategoryClicked={category => {
+        onActivateCategory={category => {
           actions.sidebar.activateSidebarCategory.trigger({ category });
         }}
-        isSynced
-        openDialogAction={actions.dialogs.open.trigger}
+        onOpenDialog={dialog => actions.dialogs.open.trigger({ dialog })}
         onAddWallet={() =>
           actions.router.goToRoute.trigger({ route: ROUTES.WALLETS.ADD })
         }
         onSubmitSupportRequest={() =>
           actions.router.goToRoute.trigger({ route: ROUTES.SETTINGS.SUPPORT })
         }
+        onOpenSplashNetwork={() => actions.networkStatus.toggleSplash.trigger()}
         pathname={this.props.stores.router.location.pathname}
+        currentTheme={currentTheme}
+        network={network}
       />
     );
-
-    const addNodeUpdateNotification =
-      isUpdateAvailable && !isUpdatePostponed ? <NodeUpdatePage /> : null;
 
     return (
       <SidebarLayout
         sidebar={sidebarComponent}
         topbar={<TopBarContainer />}
-        notification={addNodeUpdateNotification}
         contentDialogs={[
           <PaperWalletCreateCertificatePage
             key="PaperWalletCreateCertificatePage"
             certificateStep={this.props.stores.wallets.certificateStep}
           />,
+          <TransferFundsPage key="TransferFundsPage" />,
         ]}
       >
         {this.props.children}

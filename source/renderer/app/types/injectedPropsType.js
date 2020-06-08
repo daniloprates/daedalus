@@ -8,6 +8,10 @@ export type InjectedProps = {
   actions: any | ActionsMap,
 };
 
+export type InjectedStoresProps = {
+  stores: any | StoresMap,
+};
+
 export type InjectedContainerProps = {
   stores: any | StoresMap,
   actions: any | ActionsMap,
@@ -19,4 +23,31 @@ export type InjectedDialogContainerProps = {
   actions: any | ActionsMap,
   children: Node,
   onClose: Function,
+};
+
+export type InjectedDialogContainerFilterProps = {
+  stores: any | StoresMap,
+  actions: any | ActionsMap,
+  children: Node,
+  onFilter: Function,
+};
+
+export type InjectedDialogContainerStepProps = {
+  stores: any | StoresMap,
+  actions: any | ActionsMap,
+  children: Node,
+  isVideoWatched?: boolean,
+  onClose: Function,
+  onContinue: Function,
+  onBack: Function,
+};
+
+export const InjectedDialogContainerStepDefaultProps = {
+  actions: null,
+  stores: null,
+  children: null,
+  isVideoWatch: false,
+  onClose: () => {},
+  onContinue: () => {},
+  onBack: () => {},
 };

@@ -5,29 +5,41 @@ import styles from './Navigation.scss';
 import NavButton from './NavButton';
 import NavDropdown from './NavDropdown';
 
-type NavButtonProps = {
+export type NavButtonProps = {
   type?: 'button',
   id: string,
   label: string,
   icon?: string,
+  hasNotification?: boolean,
 };
 
-type NavDropdownProps = {
+export type NavDropdownProps = {
   ...$Exact<NavButtonProps>,
   type: 'dropdown',
   options: Array<{ value: number | string, label: string }>,
+  hasNotification?: boolean,
 };
 
 type Props = {
   activeItem: string,
   isActiveNavItem?: Function,
   onNavItemClick: Function,
+  isLegacy?: boolean,
   items: Array<NavButtonProps | NavDropdownProps>,
 };
 
 @observer
 export default class Navigation extends Component<Props> {
-  isActiveNavItem = (id: string) => id === this.props.activeItem;
+  isActiveNavItem = (
+    id: string,
+    item: NavButtonProps | NavDropdownProps | {}
+  ) => {
+    let result = false;
+    if (!item) {
+      result = id === this.props.activeItem;
+    }
+    return result;
+  };
 
   render() {
     const {
@@ -35,19 +47,23 @@ export default class Navigation extends Component<Props> {
       onNavItemClick,
       activeItem,
       items,
+      isLegacy,
     } = this.props;
+    const { isIncentivizedTestnet } = global;
+
     return (
       <div className={styles.component}>
-        {items.map(({ id, icon, label, ...item }) =>
-          item.type === 'dropdown' ? (
+        {items.map(({ id, icon, label, hasNotification, ...item }) =>
+          item.type === 'dropdown' && !(isIncentivizedTestnet && isLegacy) ? (
             <NavDropdown
               key={id}
               label={label}
               icon={icon}
-              isActive={isActiveNavItem(id)}
+              isActive={isActiveNavItem(id, item)}
               onChange={i => onNavItemClick(i)}
               activeItem={activeItem}
               options={item.options}
+              hasNotification={hasNotification}
             />
           ) : (
             <NavButton
@@ -55,8 +71,9 @@ export default class Navigation extends Component<Props> {
               className={id}
               label={label}
               icon={icon}
-              isActive={isActiveNavItem(id)}
+              isActive={isActiveNavItem(id, item)}
               onClick={() => onNavItemClick(id)}
+              hasNotification={hasNotification}
             />
           )
         )}

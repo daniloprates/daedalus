@@ -11,6 +11,7 @@
   justify-content: space-between;
   overflow: hidden;
   padding: 0 20px;
+  position: relative;
   width: $sidebar-width - $sidebar-minimized-category-width;
 
   &:hover {
@@ -19,7 +20,23 @@
 }
 
 .legacyItem {
-  padding-right: 58.5px;
+  .title {
+    padding-right: 50px;
+  }
+
+  .meta {
+    :global {
+      .ProgressBar_component {
+        width: 156px;
+      }
+    }
+  }
+}
+
+.notResponding {
+  .meta {
+    opacity: 0.5;
+  }
 }
 
 .active {
@@ -49,15 +66,27 @@
   }
 }
 
-.title {
-  color: var(--theme-sidebar-menu-item-wallet-name-color);
-  font-family: var(--font-regular);
-  font-size: 18px;
-  line-height: 1.5em;
-  margin-top: -5.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.topContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+
+  .title {
+    color: var(--theme-sidebar-menu-item-wallet-name-color);
+    font-family: var(--font-regular);
+    font-size: 18px;
+    line-height: 1.5em;
+    margin-top: -5.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .disconnectedIcon {
+    height: 21px;
+    object-fit: contain;
+    width: 21px;
+  }
 }
 
 .info {
@@ -66,4 +95,19 @@
   font-size: 14px;
   letter-spacing: 1px;
   opacity: 0.7;
+}
+
+.notification {
+  &:after {
+    background: var(--theme-button-attention-background-color);
+    border-radius: 50%;
+    content: '';
+    display: block;
+    height: 8px;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-8px);
+    width: 8px;
+  }
 }

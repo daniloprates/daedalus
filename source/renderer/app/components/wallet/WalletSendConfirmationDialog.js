@@ -4,7 +4,10 @@ import { observer } from 'mobx-react';
 import classnames from 'classnames';
 import { Input } from 'react-polymorph/lib/components/Input';
 import { InputSkin } from 'react-polymorph/lib/skins/simple/InputSkin';
-import { defineMessages, intlShape } from 'react-intl';
+import { Checkbox } from 'react-polymorph/lib/components/Checkbox';
+import { CheckboxSkin } from 'react-polymorph/lib/skins/simple/CheckboxSkin';
+import { defineMessages, intlShape, FormattedHTMLMessage } from 'react-intl';
+import vjf from 'mobx-react-form/lib/validators/VJF';
 import ReactToolboxMobxForm from '../../utils/ReactToolboxMobxForm';
 import Dialog from '../widgets/Dialog';
 import DialogCloseButton from '../widgets/DialogCloseButton';
@@ -21,8 +24,8 @@ export const messages = defineMessages({
     defaultMessage: '!!!Confirm transaction',
     description: 'Title for the "Confirm transaction" dialog.',
   },
-  spendingPasswordLabel: {
-    id: 'wallet.send.confirmationDialog.spendingPasswordLabel',
+  passphraseLabel: {
+    id: 'wallet.send.confirmationDialog.passphraseLabel',
     defaultMessage: '!!!Spending password',
     description:
       'Label for the "Spending password" input in the wallet send confirmation dialog.',
@@ -49,11 +52,25 @@ export const messages = defineMessages({
     description:
       'Label for the "Total" in the wallet send confirmation dialog.',
   },
-  spendingPasswordFieldPlaceholder: {
-    id: 'wallet.send.confirmationDialog.spendingPasswordFieldPlaceholder',
+  passphraseFieldPlaceholder: {
+    id: 'wallet.send.confirmationDialog.passphraseFieldPlaceholder',
     defaultMessage: '!!!Type your spending password',
     description:
       'Placeholder for the "Spending password" inputs in the wallet send confirmation dialog.',
+  },
+  flightCandidateWarning: {
+    id: 'wallet.send.confirmationDialog.flightCandidateWarning',
+    defaultMessage:
+      '!!!{Warning}, flight candidate versions of Daedalus are connected to Cardano mainnet. If you confirm this transaction, your ada will be sent for real.',
+    description:
+      'Text for the "Flight candidate" warning in the wallet send confirmation dialog.',
+  },
+  flightCandidateCheckboxLabel: {
+    id: 'wallet.send.confirmationDialog.flightCandidateCheckboxLabel',
+    defaultMessage:
+      '!!!I understand that real ada will be moved as part of this transaction and that this action is irreversible.',
+    description:
+      'Label for the "Flight candidate" warning checkbox in the wallet send confirmation dialog.',
   },
   sendButtonLabel: {
     id: 'wallet.send.confirmationDialog.submit',
@@ -67,12 +84,17 @@ export const messages = defineMessages({
     description:
       'Label for the back button in the wallet send confirmation dialog.',
   },
+  passwordErrorMessage: {
+    id: 'wallet.send.confirmationDialog.passwordError',
+    defaultMessage: '!!!Incorrect spending password.',
+    description:
+      'Label for password error in the wallet send confirmation dialog.',
+  },
 });
 
 messages.fieldIsRequired = globalMessages.fieldIsRequired;
 
 type Props = {
-  isSpendingPasswordSet: boolean,
   amount: string,
   receiver: string,
   totalAmount: ?string,
@@ -82,6 +104,7 @@ type Props = {
   onCancel: Function,
   onExternalLinkClick: Function,
   isSubmitting: boolean,
+  isFlight: boolean,
   error: ?LocalizableError,
   currencyUnit: string,
 };
@@ -95,18 +118,16 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
   form = new ReactToolboxMobxForm(
     {
       fields: {
-        spendingPassword: {
+        passphrase: {
           type: 'password',
-          label: this.context.intl.formatMessage(
-            messages.spendingPasswordLabel
-          ),
+          label: this.context.intl.formatMessage(messages.passphraseLabel),
           placeholder: this.context.intl.formatMessage(
-            messages.spendingPasswordFieldPlaceholder
+            messages.passphraseFieldPlaceholder
           ),
           value: '',
           validators: [
             ({ field }) => {
-              if (this.props.isSpendingPasswordSet && field.value === '') {
+              if (field.value === '') {
                 return [
                   false,
                   this.context.intl.formatMessage(messages.fieldIsRequired),
@@ -116,9 +137,16 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
             },
           ],
         },
+        flightCandidateCheckbox: {
+          type: 'checkbox',
+          label: this.context.intl.formatMessage(
+            messages.flightCandidateCheckboxLabel
+          ),
+        },
       },
     },
     {
+      plugins: { vjf: vjf() },
       options: {
         validateOnChange: true,
         validationDebounceWait: FORM_VALIDATION_DEBOUNCE_WAIT,
@@ -129,17 +157,12 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
   submit = () => {
     this.form.submit({
       onSuccess: form => {
-        const {
-          isSpendingPasswordSet,
-          receiver,
-          amount,
-          amountToNaturalUnits,
-        } = this.props;
-        const { spendingPassword } = form.values();
+        const { receiver, amount, amountToNaturalUnits } = this.props;
+        const { passphrase } = form.values();
         const transactionData = {
           receiver,
           amount: amountToNaturalUnits(amount),
-          password: isSpendingPasswordSet ? spendingPassword : null,
+          passphrase,
         };
         this.props.onSubmit(transactionData);
       },
@@ -148,21 +171,21 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
   };
 
   handleSubmitOnEnter = (event: {}) =>
-    this.form.$('spendingPassword').isValid &&
-    submitOnEnter(this.submit, event);
+    this.form.$('passphrase').isValid && submitOnEnter(this.submit, event);
 
   render() {
     const { form } = this;
     const { intl } = this.context;
-    const spendingPasswordField = form.$('spendingPassword');
+    const passphraseField = form.$('passphrase');
+    const flightCandidateCheckboxField = form.$('flightCandidateCheckbox');
     const {
       onCancel,
-      isSpendingPasswordSet,
       amount,
       receiver,
       totalAmount,
       transactionFee,
       isSubmitting,
+      isFlight,
       error,
       currencyUnit,
       onExternalLinkClick,
@@ -183,7 +206,9 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
         onClick: this.submit,
         primary: true,
         className: confirmButtonClasses,
-        disabled: !spendingPasswordField.isValid,
+        disabled:
+          !passphraseField.isValid ||
+          (!flightCandidateCheckboxField.value && isFlight),
       },
     ];
 
@@ -196,7 +221,7 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
           onExternalLinkClick={onExternalLinkClick}
         />
       ) : (
-        this.context.intl.formatMessage(error)
+        intl.formatMessage(error)
       );
     }
 
@@ -210,7 +235,7 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
         className={styles.dialog}
         closeButton={<DialogCloseButton />}
       >
-        <div className={styles.spendingPasswordFields}>
+        <div className={styles.passphraseFields}>
           <div className={styles.addressToLabelWrapper}>
             <div className={styles.addressToLabel}>
               {intl.formatMessage(messages.addressToLabel)}
@@ -256,18 +281,30 @@ export default class WalletSendConfirmationDialog extends Component<Props> {
             </div>
           </div>
 
-          {isSpendingPasswordSet ? (
-            <Input
-              type="password"
-              className={styles.spendingPassword}
-              {...spendingPasswordField.bind()}
-              error={spendingPasswordField.error}
-              skin={InputSkin}
-              onKeyPress={this.handleSubmitOnEnter}
-              autoFocus
-            />
-          ) : null}
+          <Input
+            type="password"
+            className={styles.passphrase}
+            {...passphraseField.bind()}
+            error={passphraseField.error}
+            skin={InputSkin}
+            onKeyPress={this.handleSubmitOnEnter}
+            autoFocus
+          />
         </div>
+
+        {isFlight && (
+          <div className={styles.flightCandidateWarning}>
+            <FormattedHTMLMessage
+              {...messages.flightCandidateWarning}
+              tagName="p"
+            />
+            <Checkbox
+              {...flightCandidateCheckboxField.bind()}
+              error={flightCandidateCheckboxField.error}
+              skin={CheckboxSkin}
+            />
+          </div>
+        )}
 
         {errorElement ? <p className={styles.error}>{errorElement}</p> : null}
       </Dialog>

@@ -1,33 +1,45 @@
 .component {
-  background-color: var(--theme-staking-stake-pool-background-color);
-  border: solid 1px var(--theme-staking-stake-pool-border-color);
-  border-radius: 4px;
-  box-sizing: unset;
-  display: flex;
-  height: 71px;
-  justify-content: center;
-  margin: 5px;
   position: relative;
-  width: 80px;
+  > button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    height: 100%;
+    position: absolute;
+    width: 100%;
+    z-index: 1;
+  }
 }
 
 .content {
-  height: 100%;
+  background-color: var(--theme-staking-stake-pool-background-color);
+  border: solid 1px var(--theme-staking-stake-pool-border-color);
+  border-radius: 4px;
   cursor: pointer;
-  width: 100%;
+  height: 71px;
+  padding: 9px 0 0;
+  width: 80px;
+
+  &.disabled {
+    opacity: 0.3;
+  }
+
+  &.isOnHover:hover {
+    @extend .isHighlighted;
+  }
 }
 
-.isSelected {
+.isHighlighted {
   box-shadow: 0 0 4px 2px var(--theme-staking-stake-pool-glow-color);
 }
 
-.id {
-  color: var(--theme-staking-stake-pool-id-color);
+.ticker {
+  color: var(--theme-staking-stake-pool-ticker-color);
+  font-family: var(--font-semibold);
   font-size: 14px;
-  font-weight: 600;
   letter-spacing: -0.5px;
   line-height: 1;
-  margin: 12px 0 9px;
+  margin: 0 0 1px;
   text-align: center;
 }
 
@@ -35,6 +47,54 @@
   font-size: 20px;
   font-weight: bold;
   text-align: center;
+}
+
+.saturationBar {
+  background: var(--theme-staking-stake-pool-saturation-background-color);
+  border-radius: 2px;
+  height: 5px;
+  margin: 2px auto 0;
+  overflow: hidden;
+  position: relative;
+  width: 40px;
+
+  span {
+    border-radius: 2px;
+    bottom: 0;
+    height: inherit;
+    left: 0;
+    position: absolute;
+    top: 0;
+  }
+
+  &.green span {
+    background: var(--theme-staking-stake-pool-saturation-green-color);
+  }
+
+  &.orange span {
+    background: var(--theme-staking-stake-pool-saturation-orange-color);
+  }
+
+  &.red span {
+    background: var(--theme-staking-stake-pool-saturation-red-color);
+  }
+
+  &.yellow span {
+    background: var(--theme-staking-stake-pool-saturation-yellow-color);
+  }
+}
+
+.checkmarkWrapper {
+  margin-top: 10px;
+  text-align: center;
+  .checkmarkImage {
+    svg {
+      width: 15.5px;
+      path {
+        stroke: var(--theme-staking-stake-pool-selected-checkmark-icon-color);
+      }
+    }
+  }
 }
 
 .clock {
@@ -50,7 +110,7 @@
 .clockIcon {
   display: block;
   line-height: 0;
-  margin: 0;
+  margin: 1px 0 0;
   padding: 0;
   text-align: center;
 
@@ -68,4 +128,15 @@
   left: 0;
   position: absolute;
   width: 100%;
+}
+
+.isSelected,
+.isNextSelected {
+  .colorBand,
+  .ranking {
+    visibility: hidden;
+  }
+  .ticker {
+    color: var(--theme-staking-stake-pool-selected-ticker-color);
+  }
 }

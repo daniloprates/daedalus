@@ -9,7 +9,7 @@ const isCi = process.env.CI && process.env.CI !== '';
 
 module.exports = {
   mode: 'development',
-  devtool: 'cheap-module-source-map',
+  devtool: 'inline-cheap-module-source-map',
   entry: './source/renderer/index.js',
   optimization: {
     // https://github.com/webpack/webpack/issues/7470
@@ -111,6 +111,7 @@ module.exports = {
       )
     ),
     new AutoDllPlugin({
+      inherit: !isCi,
       filename: 'vendor.dll.js',
       context: path.join(__dirname, '..'),
       entry: {
@@ -122,6 +123,7 @@ module.exports = {
           'bs58',
           'classnames',
           'es6-error',
+          'history',
           'humanize-duration',
           'lodash',
           'mobx',
@@ -133,10 +135,10 @@ module.exports = {
           'qrcode.react',
           'react',
           'react-copy-to-clipboard',
+          'react-datetime',
           'react-dom',
-          'react-dropzone',
-          'react-number-format',
           'react-router',
+          'react-router-dom',
           'react-svg-inline',
           'recharts',
           'route-parser',

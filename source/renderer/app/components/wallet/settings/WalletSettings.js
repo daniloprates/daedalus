@@ -3,31 +3,47 @@ import React, { Component } from 'react';
 import type { Node } from 'react';
 import { observer } from 'mobx-react';
 import { defineMessages, intlShape } from 'react-intl';
+import classNames from 'classnames';
 import moment from 'moment';
 import LocalizableError from '../../../i18n/LocalizableError';
 import BorderedBox from '../../widgets/BorderedBox';
 import InlineEditingInput from '../../widgets/forms/InlineEditingInput';
-import InlineEditingDropdown from '../../widgets/forms/InlineEditingDropdown';
 import ReadOnlyInput from '../../widgets/forms/ReadOnlyInput';
 import DeleteWalletButton from './DeleteWalletButton';
 import DeleteWalletConfirmationDialog from './DeleteWalletConfirmationDialog';
-import ExportWalletToFileDialog from './ExportWalletToFileDialog';
-import type { ReactIntlMessage } from '../../../types/i18nTypes';
 import ChangeSpendingPasswordDialog from './ChangeSpendingPasswordDialog';
 import globalMessages from '../../../i18n/global-messages';
 import styles from './WalletSettings.scss';
+import WalletRecoveryPhraseVerificationWidget from './WalletRecoveryPhraseVerificationWidget';
 
 export const messages = defineMessages({
-  name: {
-    id: 'wallet.settings.name.label',
-    defaultMessage: '!!!Name',
-    description: 'Label for the "Name" text input on the wallet settings page.',
-  },
   assuranceLevelLabel: {
     id: 'wallet.settings.assurance',
     defaultMessage: '!!!Transaction assurance security level',
     description:
       'Label for the "Transaction assurance security level" dropdown.',
+  },
+  deleteWalletHeader: {
+    id: 'wallet.settings.deleteWallet.header',
+    defaultMessage: '!!!Delete wallet',
+    description: 'Delete wallet header on the wallet settings page.',
+  },
+  deleteWalletWarning1: {
+    id: 'wallet.settings.deleteWallet.warning1',
+    defaultMessage:
+      '!!!Once you delete this wallet it will be removed from the Daedalus interface and you will lose access to any remaining funds in the wallet. The only way to regain access after deletion is by restoring it using your wallet recovery phrase.',
+    description: 'Delete wallet warning explaining the consequences.',
+  },
+  deleteWalletWarning2: {
+    id: 'wallet.settings.deleteWallet.warning2',
+    defaultMessage:
+      '!!!You may wish to verify your recovery phrase before deletion to ensure that you can restore this wallet in the future, if desired.',
+    description: 'Delete wallet warning explaining the consequences.',
+  },
+  name: {
+    id: 'wallet.settings.name.label',
+    defaultMessage: '!!!Name',
+    description: 'Label for the "Name" text input on the wallet settings page.',
   },
   passwordLabel: {
     id: 'wallet.settings.password',
@@ -44,18 +60,11 @@ export const messages = defineMessages({
     defaultMessage: "!!!You still don't have password",
     description: "You still don't have password set message.",
   },
-  exportButtonLabel: {
-    id: 'wallet.settings.exportWalletButtonLabel',
-    defaultMessage: '!!!Export wallet',
-    description: 'Label for the export button on wallet settings.',
-  },
 });
 
 type Props = {
-  assuranceLevels: Array<{ value: string, label: ReactIntlMessage }>,
   walletName: string,
-  walletAssurance: string,
-  isSpendingPasswordSet: boolean,
+  creationDate: Date,
   spendingPasswordUpdateDate: ?Date,
   error?: ?LocalizableError,
   openDialogAction: Function,
@@ -64,39 +73,70 @@ type Props = {
   onStartEditing: Function,
   onStopEditing: Function,
   onCancelEditing: Function,
+  onVerifyRecoveryPhrase: Function,
   nameValidator: Function,
   activeField: ?string,
   isSubmitting: boolean,
+  isIncentivizedTestnet: boolean,
   isInvalid: boolean,
-  showExportLink: boolean,
+  isLegacy: boolean,
   lastUpdatedField: ?string,
   changeSpendingPasswordDialog: Node,
   deleteWalletDialogContainer: Node,
-  exportWalletDialogContainer: Node,
+  shouldDisplayRecoveryPhrase: boolean,
+  recoveryPhraseVerificationDate: ?Date,
+  recoveryPhraseVerificationStatus: string,
+  recoveryPhraseVerificationStatusType: string,
+  wordCount: number,
+  locale: string,
+  isSpendingPasswordSet: boolean,
+};
+
+type State = {
+  isFormBlocked: boolean,
 };
 
 @observer
-export default class WalletSettings extends Component<Props> {
+export default class WalletSettings extends Component<Props, State> {
   static contextTypes = {
     intl: intlShape.isRequired,
   };
 
-  static defaultProps = {
-    showExportLink: false,
+  state = {
+    isFormBlocked: false,
   };
+
+  componentDidUpdate() {
+    const { isDialogOpen } = this.props;
+    const { isFormBlocked } = this.state;
+    // Set "name" input to active and "unblock form" on Dialog close
+    if (
+      !isDialogOpen(DeleteWalletConfirmationDialog) &&
+      !isDialogOpen(ChangeSpendingPasswordDialog) &&
+      isFormBlocked
+    ) {
+      this.unblockForm();
+    }
+  }
 
   componentWillUnmount() {
     // This call is used to prevent display of old successfully-updated messages
     this.props.onCancelEditing();
   }
 
+  onBlockForm = () => {
+    this.setState({ isFormBlocked: true });
+  };
+
+  unblockForm = () => {
+    this.setState({ isFormBlocked: false });
+  };
+
   render() {
     const { intl } = this.context;
     const {
-      assuranceLevels,
-      walletAssurance,
       walletName,
-      isSpendingPasswordSet,
+      creationDate,
       spendingPasswordUpdateDate,
       error,
       openDialogAction,
@@ -105,25 +145,69 @@ export default class WalletSettings extends Component<Props> {
       onStartEditing,
       onStopEditing,
       onCancelEditing,
+      onVerifyRecoveryPhrase,
       nameValidator,
       activeField,
       isSubmitting,
+      isIncentivizedTestnet,
       isInvalid,
+      isLegacy,
       lastUpdatedField,
-      showExportLink,
       changeSpendingPasswordDialog,
       deleteWalletDialogContainer,
-      exportWalletDialogContainer,
+      recoveryPhraseVerificationDate,
+      recoveryPhraseVerificationStatus,
+      recoveryPhraseVerificationStatusType,
+      locale,
+      isSpendingPasswordSet,
+      shouldDisplayRecoveryPhrase,
+      wordCount,
     } = this.props;
+    const { isFormBlocked } = this.state;
 
-    const assuranceLevelOptions = assuranceLevels.map(assurance => ({
-      value: assurance.value,
-      label: intl.formatMessage(assurance.label),
-    }));
+    // Set Japanese locale to moment. Default is en-US
+    if (locale === 'ja-JP') {
+      moment.locale('ja');
+    } else {
+      moment.locale('en-us');
+    }
+
+    if (isLegacy && isIncentivizedTestnet) {
+      const deleteWalletBoxStyles = classNames([
+        styles.deleteWalletBox,
+        styles.legacyWallet,
+      ]);
+      return (
+        <div className={styles.component}>
+          <BorderedBox className={deleteWalletBoxStyles}>
+            <span>{intl.formatMessage(messages.deleteWalletHeader)}</span>
+            <div className={styles.contentBox}>
+              <div>
+                <p>{intl.formatMessage(messages.deleteWalletWarning1)}</p>
+                <p>{intl.formatMessage(messages.deleteWalletWarning2)}</p>
+              </div>
+              <DeleteWalletButton
+                onClick={() =>
+                  openDialogAction({
+                    dialog: DeleteWalletConfirmationDialog,
+                  })
+                }
+              />
+            </div>
+          </BorderedBox>
+
+          {isDialogOpen(DeleteWalletConfirmationDialog)
+            ? deleteWalletDialogContainer
+            : false}
+        </div>
+      );
+    }
 
     const passwordMessage = isSpendingPasswordSet
       ? intl.formatMessage(messages.passwordLastUpdated, {
-          lastUpdated: moment(spendingPasswordUpdateDate).fromNow(),
+          lastUpdated: moment(spendingPasswordUpdateDate)
+            .locale(this.context.intl.locale)
+            .fromNow(),
         })
       : intl.formatMessage(messages.passwordNotSet);
 
@@ -134,7 +218,8 @@ export default class WalletSettings extends Component<Props> {
             className="walletName"
             inputFieldLabel={intl.formatMessage(messages.name)}
             inputFieldValue={walletName}
-            isActive={activeField === 'name'}
+            maxLength={40}
+            isActive={!isFormBlocked && activeField === 'name'}
             onStartEditing={() => onStartEditing('name')}
             onStopEditing={onStopEditing}
             onCancelEditing={onCancelEditing}
@@ -144,59 +229,57 @@ export default class WalletSettings extends Component<Props> {
               globalMessages.invalidWalletName
             )}
             successfullyUpdated={
-              !isSubmitting && lastUpdatedField === 'name' && !isInvalid
+              !isSubmitting && !isInvalid && lastUpdatedField === 'name'
             }
-          />
-
-          <InlineEditingDropdown
-            className="walletAssuranceLevel"
-            label={intl.formatMessage(messages.assuranceLevelLabel)}
-            options={assuranceLevelOptions}
-            value={walletAssurance}
-            isActive={activeField === 'assurance'}
-            onStartEditing={() => onStartEditing('assurance')}
-            onStopEditing={onStopEditing}
-            onSubmit={value => onFieldValueChange('assurance', value)}
-            successfullyUpdated={
-              !isSubmitting && lastUpdatedField === 'assurance'
-            }
+            inputBlocked={isFormBlocked}
           />
 
           <ReadOnlyInput
             label={intl.formatMessage(messages.passwordLabel)}
             value={passwordMessage}
             isSet={isSpendingPasswordSet}
-            onClick={() =>
+            onClick={() => {
+              this.onBlockForm();
               openDialogAction({
                 dialog: ChangeSpendingPasswordDialog,
-              })
-            }
+              });
+            }}
           />
 
+          {shouldDisplayRecoveryPhrase && (
+            <WalletRecoveryPhraseVerificationWidget
+              onVerify={onVerifyRecoveryPhrase}
+              recoveryPhraseVerificationDate={recoveryPhraseVerificationDate}
+              recoveryPhraseVerificationStatus={
+                recoveryPhraseVerificationStatus
+              }
+              recoveryPhraseVerificationStatusType={
+                recoveryPhraseVerificationStatusType
+              }
+              creationDate={creationDate}
+              locale={locale}
+              wordCount={wordCount}
+              isIncentivizedTestnet={isIncentivizedTestnet}
+            />
+          )}
+
           {error && <p className={styles.error}>{intl.formatMessage(error)}</p>}
+        </BorderedBox>
 
-          <div className={styles.actionButtons}>
-            {showExportLink ? (
-              <button
-                className={styles.exportLink}
-                onClick={() =>
-                  openDialogAction({
-                    dialog: ExportWalletToFileDialog,
-                  })
-                }
-              >
-                {intl.formatMessage(messages.exportButtonLabel)}
-              </button>
-            ) : (
-              false
-            )}
-
+        <BorderedBox className={styles.deleteWalletBox}>
+          <span>{intl.formatMessage(messages.deleteWalletHeader)}</span>
+          <div className={styles.contentBox}>
+            <div>
+              <p>{intl.formatMessage(messages.deleteWalletWarning1)}</p>
+              <p>{intl.formatMessage(messages.deleteWalletWarning2)}</p>
+            </div>
             <DeleteWalletButton
-              onClick={() =>
+              onClick={() => {
+                this.onBlockForm();
                 openDialogAction({
                   dialog: DeleteWalletConfirmationDialog,
-                })
-              }
+                });
+              }}
             />
           </div>
         </BorderedBox>
@@ -207,10 +290,6 @@ export default class WalletSettings extends Component<Props> {
 
         {isDialogOpen(DeleteWalletConfirmationDialog)
           ? deleteWalletDialogContainer
-          : false}
-
-        {isDialogOpen(ExportWalletToFileDialog)
-          ? exportWalletDialogContainer
           : false}
       </div>
     );

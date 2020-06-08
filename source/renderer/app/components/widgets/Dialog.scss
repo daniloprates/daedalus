@@ -4,15 +4,24 @@
   flex: 1;
   flex-direction: column;
   position: relative;
+  width: 580px;
 
   & > .title {
     font-family: var(--font-medium);
     font-size: 18px;
-    line-height: 1.39;
     letter-spacing: 1px;
+    line-height: 1.39;
     margin-bottom: 20px;
     text-align: center;
     text-transform: uppercase;
+  }
+
+  & > .subtitle {
+    font-family: var(--font-medium);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.83;
+    text-align: center;
   }
 
   & > .content {
@@ -21,6 +30,7 @@
     overflow-x: hidden;
     overflow-y: overlay;
     padding-right: 25px;
+    scroll-behavior: smooth;
   }
 
   & > .actions {

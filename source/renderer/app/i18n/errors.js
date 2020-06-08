@@ -9,26 +9,6 @@ export class InvalidMnemonicError extends LocalizableError {
   }
 }
 
-export class AdaRedemptionCertificateParseError extends LocalizableError {
-  constructor() {
-    super({
-      id: 'global.errors.AdaRedemptionCertificateParseError',
-      defaultMessage:
-        '!!!The ada redemption code could not be parsed from the given document.',
-    });
-  }
-}
-
-export class AdaRedemptionEncryptedCertificateParseError extends LocalizableError {
-  constructor() {
-    super({
-      id: 'global.errors.AdaRedemptionEncryptedCertificateParseError',
-      defaultMessage:
-        '!!!The ada redemption code could not be parsed, please check your passphrase.',
-    });
-  }
-}
-
 export class InvalidEmailError extends LocalizableError {
   constructor() {
     super({
@@ -60,6 +40,16 @@ export class WalletPaperWalletOpenPdfError extends LocalizableError {
   constructor() {
     super({
       id: 'global.errors.paperWalletOpenPdfError',
+      defaultMessage:
+        '!!!The file you are trying to replace is open. Please close it and try again.',
+    });
+  }
+}
+
+export class WalletRewardsOpenCsvError extends LocalizableError {
+  constructor() {
+    super({
+      id: 'global.errors.rewardsOpenCsvError',
       defaultMessage:
         '!!!The file you are trying to replace is open. Please close it and try again.',
     });

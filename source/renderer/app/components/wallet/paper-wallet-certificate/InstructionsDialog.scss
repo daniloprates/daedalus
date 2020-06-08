@@ -1,5 +1,6 @@
 @import '../../../themes/mixins/loading-spinner';
 @import '../../../themes/mixins/error-message';
+@import '../../../themes/mixins/link';
 
 .instructionsContentWrapper {
   color: var(--theme-dialog-text-color);
@@ -10,8 +11,8 @@
   }
 
   .subtitle2 {
-    line-height: 1.38;
     font-family: var(--font-medium);
+    line-height: 1.38;
   }
 
   .instructionsList {
@@ -20,14 +21,25 @@
 
     .link,
     .instructionsListLabel {
-      font-weight: 500;
       font-family: var(--font-medium);
+      font-weight: 500;
       margin-top: 20px;
     }
 
     .link {
-      cursor: pointer;
-      text-decoration: underline;
+      border-color: var(
+        --theme-paper-wallet-create-certificate-dialog-explorer-link-color
+      );
+      color: var(
+        --theme-paper-wallet-create-certificate-dialog-explorer-link-color
+      );
+      font-size: 16px;
+      word-break: break-word;
+      &:after {
+        background-color: var(
+          --theme-paper-wallet-create-certificate-dialog-explorer-link-color
+        );
+      }
     }
 
     ul {
@@ -39,20 +51,14 @@
       line-height: 1.38;
       margin-bottom: 6px;
     }
-
-    a {
-      color: var(
-        --theme-paper-wallet-create-certificate-dialog-explorer-link-color
-      );
-    }
   }
 
   .printingInstructions {
     border-top: 1px solid var(--theme-dialog-border-color);
+    line-height: 1.38;
     margin-top: 20px;
     padding-bottom: 0;
     padding-top: 20px;
-    line-height: 1.38;
 
     strong {
       font-family: var(--font-medium);

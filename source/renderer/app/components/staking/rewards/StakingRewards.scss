@@ -1,16 +1,17 @@
+@import '../../../themes/mixins/link';
 .component {
-  padding: 20px 20px 0;
+  padding: 20px;
 
   .headerWrapper {
     display: flex;
-    margin: 0 20px 10px;
     line-height: 1.38;
+    margin: 0 20px 10px;
 
     & > .title {
       color: var(--theme-staking-font-color-lighter);
+      flex-grow: 1;
       font-family: var(--font-regular);
       font-size: 16px;
-      flex-grow: 1;
     }
 
     & > .actionLabel {
@@ -19,32 +20,47 @@
       font-family: var(--font-medium);
       font-size: 14px;
       &:hover {
-        color: var(--theme-staking-font-color);
+        color: var(--theme-staking-font-color-light);
       }
     }
   }
 
   .noRewardsLabel {
     color: var(--theme-staking-font-color-lighter);
+    flex-grow: 1;
     font-family: var(--font-regular);
     font-size: 16px;
-    flex-grow: 1;
     text-align: center;
   }
 
   .note {
     color: var(--theme-staking-font-color-lighter);
+    display: flex;
     font-family: var(--font-regular);
     font-size: 14px;
     line-height: 1.43;
     padding: 10px 20px;
-    & > button {
-      color: var(--theme-staking-link-color-light);
-      cursor: pointer;
-      font-size: 14px;
-      text-decoration: underline;
-      &:hover {
-        color: var(--theme-staking-link-color);
+
+    .asterisk {
+      margin-right: 12px;
+    }
+
+    .noteContent {
+      align-items: flex-start;
+      display: flex;
+      flex-direction: column;
+
+      p {
+        margin-bottom: 3px;
+      }
+
+      .externalLink {
+        font-size: 14px;
+        margin-top: 3px;
+        opacity: 0.7;
+        &:hover {
+          opacity: 1;
+        }
       }
     }
   }
@@ -79,17 +95,17 @@
 
       &:hover {
         & > .sortIcon {
-          visibility: visible;
           opacity: 0.5;
+          visibility: visible;
         }
       }
 
       & > .sortIcon {
-        visibility: hidden;
         margin-left: 6px;
+        visibility: hidden;
         & > svg {
-          width: 7px;
           height: 7.5px;
+          width: 7px;
           & > path {
             fill: var(--theme-staking-font-color-regular);
           }
@@ -100,8 +116,8 @@
           }
         }
         &.sorted {
-          visibility: visible;
           opacity: 1;
+          visibility: visible;
         }
       }
     }
@@ -116,11 +132,12 @@
       width: 25%;
 
       p {
+        -webkit-box-orient: vertical;
         display: -webkit-box;
+        -webkit-line-clamp: 1;
         overflow: hidden;
         text-overflow: ellipsis;
-        -webkit-line-clamp: 1;
-        -webkit-box-orient: vertical;
+        word-break: break-all;
 
         .stakePoolReference {
           font-family: var(--font-medium);
